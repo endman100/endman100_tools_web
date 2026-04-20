@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SillyTavern PNG ↔ JSON — Endman100 Tools</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    /* ===== Upload Area ===== */
+    .upload-area {
+      border: 2px dashed var(--border-hover);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      background: rgba(108, 99, 255, 0.03);
+    }
+
+    .upload-area:hover,
+    .upload-area.dragover {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.08);
+    }
+
+    .upload-area .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .upload-area p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .upload-area .upload-hint {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* ===== Character Info Card ===== */
+    .char-card {
+      margin-top: 2rem;
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--bg-card);
+    }
+
+    .char-card.show {
+      display: block;
+    }
+
+    .char-card-top {
+      display: flex;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      align-items: flex-start;
+    }
+
+    /* ===== Avatar with swap overlay ===== */
+    .char-avatar-wrap {
+      width: 120px;
+      height: 120px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+      background: var(--bg-secondary);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .char-avatar-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .avatar-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .char-avatar-wrap:hover .avatar-overlay {
+      opacity: 1;
+    }
+
+    .avatar-overlay span {
+      color: #fff;
+      font-size: 1.3rem;
+    }
+
+    .avatar-overlay small {
+      color: rgba(255, 255, 255, 0.8);
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .avatar-overlay input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .char-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .char-meta h2 {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: var(--text-primary);
+    }
+
+    .char-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .char-tag {
+      display: inline-block;
+      background: rgba(108, 99, 255, 0.12);
+      color: var(--accent-light);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      letter-spacing: 0.3px;
+    }
+
+    .char-meta .desc-preview {
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+      line-height: 1.55;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    /* ===== Field sections ===== */
+    .char-fields {
+      padding: 0 1.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .char-field {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .char-field-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      background: var(--bg-secondary);
+      cursor: pointer;
+      user-select: none;
+      transition: var(--transition);
+    }
+
+    .char-field-header:hover {
+      background: rgba(108, 99, 255, 0.08);
+    }
+
+    .char-field-header span {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .char-field-header .toggle-icon {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+
+    .char-field-body {
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .char-field-body::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .char-field-body::-webkit-scrollbar-thumb {
+      background: var(--border-hover);
+      border-radius: 3px;
+    }
+
+    .char-field.open .char-field-body {
+      display: block;
+    }
+
+    .char-field.open .toggle-icon {
+      transform: rotate(180deg);
+    }
+
+    /* ===== Action buttons ===== */
+    .action-bar {
+      display: flex;
+      gap: 0.75rem;
+      padding: 1.5rem;
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: var(--font);
+    }
+
+    .btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-light);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #fff;
+      border: none;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #059669, #34d399);
+      color: #fff;
+      border: none;
+    }
+
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(52, 211, 153, 0.3);
+    }
+
+    .btn.copied {
+      color: #4ade80;
+      border-color: #4ade80;
+    }
+
+    /* ===== Section Label ===== */
+    .section-label {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* ===== Raw JSON Section ===== */
+    .raw-json-section {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .raw-json-section.show {
+      display: block;
+    }
+
+    .copy-json-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: var(--font);
+      z-index: 2;
+    }
+
+    .copy-json-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-light);
+    }
+
+    .copy-json-btn.copied {
+      color: #4ade80;
+      border-color: #4ade80;
+    }
+
+    /* JSON syntax highlighting */
+    .json-key { color: #7dd3fc; }
+    .json-string { color: #86efac; }
+    .json-number { color: #fbbf24; }
+    .json-bool { color: #c084fc; }
+    .json-null { color: #9ca3af; }
+
+    /* ===== Export Section ===== */
+    .export-section {
+      margin-top: 2rem;
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      padding: 1.5rem;
+    }
+
+    .export-section.show {
+      display: block;
+    }
+
+    .export-row {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .export-img-area {
+      width: 160px;
+      flex-shrink: 0;
+    }
+
+    .export-img-preview {
+      width: 160px;
+      height: 160px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      overflow: hidden;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .export-img-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .export-img-preview .swap-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.55);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .export-img-preview:hover .swap-overlay {
+      opacity: 1;
+    }
+
+    .swap-overlay span {
+      color: #fff;
+      font-size: 1.5rem;
+    }
+
+    .swap-overlay small {
+      color: rgba(255, 255, 255, 0.85);
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .export-img-preview input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .export-img-label {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+
+    .export-info {
+      flex: 1;
+      min-width: 200px;
+    }
+
+    .export-info p {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+
+    .export-info .export-meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      line-height: 1.8;
+    }
+
+    .export-info .export-meta span {
+      color: var(--accent-light);
+      font-weight: 600;
+    }
+
+    .export-actions {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    /* ===== Status ===== */
+    .status-msg {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .status-msg.show {
+      display: block;
+    }
+
+    .status-msg.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .status-msg.info {
+      background: rgba(108, 99, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .status-msg.success {
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      color: #34d399;
+    }
+
+    .tool-description {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    #pngCanvas { display: none; }
+
+    /* ===== JSON Editor ===== */
+    .json-editor-section {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .json-editor-section.show {
+      display: block;
+    }
+
+    .json-editor-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .json-editor-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .json-editor-wrap {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .json-editor {
+      width: 100%;
+      min-height: 300px;
+      max-height: 600px;
+      padding: 1.25rem;
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: none;
+      outline: none;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      resize: vertical;
+      tab-size: 2;
+    }
+
+    .json-editor:focus {
+      box-shadow: inset 0 0 0 2px var(--accent-glow);
+    }
+
+    .json-editor::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .json-editor::-webkit-scrollbar-thumb {
+      background: var(--border-hover);
+      border-radius: 3px;
+    }
+
+    .json-error {
+      padding: 0.6rem 1rem;
+      background: rgba(239, 68, 68, 0.1);
+      border-top: 1px solid rgba(239, 68, 68, 0.3);
+      font-size: 0.8rem;
+      color: #f87171;
+      display: none;
+    }
+
+    .json-error.show {
+      display: block;
+    }
+
+    .btn-sm {
+      padding: 0.4rem 0.9rem;
+      font-size: 0.8rem;
+    }
+
+    .btn-warning {
+      background: linear-gradient(135deg, #d97706, #fbbf24);
+      color: #1a1a2e;
+      border: none;
+      font-weight: 700;
+    }
+
+    .btn-warning:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(251, 191, 36, 0.3);
+      color: #1a1a2e;
+    }
+
+    /* ===== Export filename ===== */
+    .export-filename {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin: 0.75rem 0;
+    }
+
+    .export-filename label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+
+    .export-filename input {
+      flex: 1;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      font-family: var(--font);
+      transition: var(--transition);
+    }
+
+    .export-filename input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.15);
+    }
+
+    @media (max-width: 640px) {
+      .char-card-top {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      .export-row {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../index.html">首頁</a>
+        <a href="sillytavern-png2json.html" class="active">ST PNG ↔ JSON</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tool Page -->
+  <main class="tool-page">
+    <a href="../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🃏</div>
+      <h1>SillyTavern PNG ↔ JSON</h1>
+    </div>
+
+    <div class="tool-content">
+      <p class="tool-description">
+        上傳 SillyTavern 角色卡圖片（PNG），自動讀取嵌入的角色 JSON 資料。<br />
+        支援 V1 / V2 (spec v2) 角色卡格式。可預覽角色資訊、檢視原始 JSON、更換圖片後重新輸出 PNG。
+      </p>
+
+      <!-- Upload Area -->
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept=".png,.json,.txt" />
+        <div class="upload-icon">🖼️</div>
+        <p>拖放 SillyTavern 角色卡 PNG、JSON 或 TXT 至此處</p>
+        <p class="upload-hint">支援 .png（含 chara 元資料）、.json 和 .txt 檔案</p>
+      </div>
+
+      <!-- Status -->
+      <div class="status-msg" id="statusMsg"></div>
+
+      <!-- Character Card -->
+      <div class="char-card" id="charCard">
+        <div class="char-card-top">
+          <div class="char-avatar-wrap" title="點擊更換頭像">
+            <img id="charAvatar" alt="Character Avatar" />
+            <div class="avatar-overlay">
+              <span>🔄</span>
+              <small>更換頭像</small>
+              <input type="file" id="avatarSwapInput" accept="image/*" />
+            </div>
+          </div>
+          <div class="char-meta">
+            <h2 id="charName">—</h2>
+            <div class="char-meta-row" id="charTags"></div>
+            <p class="desc-preview" id="charDescPreview"></p>
+          </div>
+        </div>
+
+        <div class="char-fields" id="charFields"></div>
+
+        <div class="action-bar">
+          <button class="btn btn-primary" id="downloadJsonBtn">💾 下載 JSON</button>
+          <button class="btn" id="copyJsonBtn">📋 複製 JSON</button>
+        </div>
+      </div>
+
+      <!-- JSON Editor -->
+      <div class="json-editor-section" id="jsonEditorSection">
+        <div class="json-editor-header">
+          <div class="section-label" style="margin-bottom:0">📄 JSON 編輯器</div>
+          <div class="json-editor-actions">
+            <button class="btn btn-sm" id="copyRawBtn">📋 複製</button>
+            <button class="btn btn-sm btn-warning" id="applyEditBtn">✅ 套用變更</button>
+          </div>
+        </div>
+        <div class="json-editor-wrap">
+          <textarea class="json-editor" id="jsonEditor" spellcheck="false"></textarea>
+          <div class="json-error" id="jsonError"></div>
+        </div>
+      </div>
+
+      <!-- Export PNG Section -->
+      <div class="export-section" id="exportSection">
+        <div class="section-label">📦 輸出 PNG 角色卡</div>
+        <div class="export-row">
+          <div class="export-img-area">
+            <div class="export-img-preview" title="點擊更換輸出圖片">
+              <img id="exportImg" alt="Export Image" />
+              <div class="swap-overlay">
+                <span>🖼️</span>
+                <small>更換圖片</small>
+              </div>
+              <input type="file" id="exportImgInput" accept="image/*" />
+            </div>
+            <p class="export-img-label">輸出用圖片（可更換）</p>
+          </div>
+          <div class="export-info">
+            <p>將目前的角色 JSON 資料嵌入至圖片中，產出一張新的 SillyTavern 角色卡 PNG。</p>
+            <div class="export-meta">
+              角色名稱：<span id="exportCharName">—</span><br />
+              JSON 大小：<span id="exportJsonSize">—</span>
+            </div>
+            <div class="export-filename">
+              <label for="exportFilename">📝 檔名：</label>
+              <input type="text" id="exportFilename" placeholder="角色卡" />
+            </div>
+            <div class="export-actions">
+              <button class="btn btn-success" id="exportPngBtn">🖼️ 下載 PNG 角色卡</button>
+              <button class="btn btn-primary" id="downloadJsonBtn2">💾 下載 JSON</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Hidden canvas for PNG construction -->
+  <canvas id="pngCanvas"></canvas>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    // ===== DOM refs =====
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const statusMsg = document.getElementById('statusMsg');
+    const charCard = document.getElementById('charCard');
+    const charAvatar = document.getElementById('charAvatar');
+    const charName = document.getElementById('charName');
+    const charTags = document.getElementById('charTags');
+    const charDescPreview = document.getElementById('charDescPreview');
+    const charFields = document.getElementById('charFields');
+    const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+    const copyJsonBtn = document.getElementById('copyJsonBtn');
+    const jsonEditorSection = document.getElementById('jsonEditorSection');
+    const jsonEditor = document.getElementById('jsonEditor');
+    const jsonError = document.getElementById('jsonError');
+    const applyEditBtn = document.getElementById('applyEditBtn');
+    const copyRawBtn = document.getElementById('copyRawBtn');
+    const exportSection = document.getElementById('exportSection');
+    const exportImg = document.getElementById('exportImg');
+    const exportImgInput = document.getElementById('exportImgInput');
+    const exportCharName = document.getElementById('exportCharName');
+    const exportJsonSize = document.getElementById('exportJsonSize');
+    const exportPngBtn = document.getElementById('exportPngBtn');
+    const exportFilename = document.getElementById('exportFilename');
+    const downloadJsonBtn2 = document.getElementById('downloadJsonBtn2');
+    const avatarSwapInput = document.getElementById('avatarSwapInput');
+    const pngCanvas = document.getElementById('pngCanvas');
+
+    // ===== State =====
+    let charaData = null;
+    let charaJsonStr = '';
+    let currentFileName = '';
+    let currentImageBlob = null;
+
+    // ===== Drag & Drop =====
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    // ===== Status helpers =====
+    function showStatus(msg, type) {
+      statusMsg.textContent = msg;
+      statusMsg.className = `status-msg show ${type}`;
+    }
+
+    function hideStatus() {
+      statusMsg.className = 'status-msg';
+    }
+
+    // ===== Main file handler =====
+    function handleFile(file) {
+      hideStatus();
+      charCard.classList.remove('show');
+      jsonEditorSection.classList.remove('show');
+      exportSection.classList.remove('show');
+      charaData = null;
+      charaJsonStr = '';
+      currentFileName = file.name.replace(/\.(png|json|txt)$/i, '');
+      currentImageBlob = null;
+      jsonError.className = 'json-error';
+      exportFilename.value = currentFileName;
+
+      const name = file.name.toLowerCase();
+
+      if (name.endsWith('.json') || name.endsWith('.txt')) {
+        handleJsonUpload(file);
+      } else if (file.type === 'image/png' || name.endsWith('.png')) {
+        handlePngUpload(file);
+      } else {
+        showStatus('請上傳 PNG、JSON 或 TXT 格式的檔案。', 'error');
+      }
+    }
+
+    // ===== Handle JSON file upload =====
+    function handleJsonUpload(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          charaData = JSON.parse(e.target.result);
+          charaJsonStr = JSON.stringify(charaData, null, 2);
+
+          renderCharCard(charaData);
+          charCard.classList.add('show');
+
+          // Show JSON editor
+          jsonEditor.value = charaJsonStr;
+          jsonEditorSection.classList.add('show');
+
+          // Show export section (no image yet)
+          updateExportMeta();
+          exportSection.classList.add('show');
+
+          showStatus('✅ JSON 檔案載入成功！請在輸出區上傳圖片以產出 PNG。', 'success');
+        } catch {
+          showStatus('JSON 檔案解析失敗，請確認格式正確。', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // ===== Handle PNG file upload =====
+    function handlePngUpload(file) {
+
+      currentImageBlob = file;
+
+      const imgUrl = URL.createObjectURL(file);
+      charAvatar.src = imgUrl;
+      exportImg.src = imgUrl;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const buffer = new Uint8Array(e.target.result);
+          const charaB64 = extractCharaChunk(buffer);
+
+          if (!charaB64) {
+            showStatus('此圖片未包含 SillyTavern 角色卡元資料（chara chunk）。', 'info');
+            return;
+          }
+
+          const jsonStr = decodeBase64(charaB64);
+          charaData = JSON.parse(jsonStr);
+          charaJsonStr = JSON.stringify(charaData, null, 2);
+
+          renderCharCard(charaData);
+          charCard.classList.add('show');
+
+          // Auto-show JSON editor
+          jsonEditor.value = charaJsonStr;
+          jsonEditorSection.classList.add('show');
+
+          // Show export section
+          updateExportMeta();
+          exportSection.classList.add('show');
+        } catch (err) {
+          showStatus('解析失敗：' + err.message, 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // ===== Update export meta display =====
+    function updateExportMeta() {
+      const isV2 = charaData && charaData.spec === 'chara_card_v2' && charaData.data;
+      const d = isV2 ? charaData.data : (charaData || {});
+      exportCharName.textContent = d.name || '未知角色';
+      exportJsonSize.textContent = formatBytes(new Blob([charaJsonStr]).size);
+    }
+
+    // ===== Extract chara tEXt from PNG =====
+    function extractCharaChunk(data) {
+      const pngSig = [137, 80, 78, 71, 13, 10, 26, 10];
+      for (let i = 0; i < 8; i++) {
+        if (data[i] !== pngSig[i]) throw new Error('不是有效的 PNG 檔案。');
+      }
+
+      let offset = 8;
+      while (offset < data.length) {
+        const length = (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
+        offset += 4;
+
+        const type = String.fromCharCode(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+        offset += 4;
+
+        if (type === 'tEXt') {
+          const chunkData = data.slice(offset, offset + length);
+          const nullIdx = chunkData.indexOf(0);
+          if (nullIdx !== -1) {
+            const keyword = new TextDecoder('latin1').decode(chunkData.slice(0, nullIdx));
+            if (keyword === 'chara') {
+              return new TextDecoder('latin1').decode(chunkData.slice(nullIdx + 1));
+            }
+          }
+        } else if (type === 'IEND') {
+          break;
+        }
+
+        offset += length + 4;
+      }
+
+      return null;
+    }
+
+    function decodeBase64(b64) {
+      const binStr = atob(b64);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) {
+        bytes[i] = binStr.charCodeAt(i);
+      }
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    // ===== Render character card =====
+    function renderCharCard(data) {
+      const isV2 = data.spec === 'chara_card_v2' && data.data;
+      const d = isV2 ? data.data : data;
+
+      charName.textContent = d.name || '未知角色';
+
+      charTags.innerHTML = '';
+      const tags = d.tags || [];
+      if (isV2) addTag('V2');
+      if (d.creator) addTag('by ' + d.creator);
+      tags.slice(0, 6).forEach(t => addTag(t));
+
+      function addTag(text) {
+        const el = document.createElement('span');
+        el.className = 'char-tag';
+        el.textContent = text;
+        charTags.appendChild(el);
+      }
+
+      charDescPreview.textContent = d.description || d.personality || '（無描述）';
+
+      charFields.innerHTML = '';
+
+      const fields = [
+        { label: '描述 (Description)', value: d.description },
+        { label: '人格 (Personality)', value: d.personality },
+        { label: '第一則訊息 (First Message)', value: d.first_mes },
+        { label: '情境 (Scenario)', value: d.scenario },
+        { label: '對話範例 (Example Messages)', value: d.mes_example },
+        { label: '系統提示 (System Prompt)', value: isV2 ? d.system_prompt : null },
+        { label: '後歷史指令 (Post-History Instructions)', value: isV2 ? d.post_history_instructions : null },
+        { label: '創作者備註 (Creator Notes)', value: isV2 ? d.creator_notes : null },
+        { label: '角色備註 (Character Note)', value: isV2 ? d.character_note : null },
+      ];
+
+      fields.forEach(f => {
+        if (!f.value) return;
+        const section = document.createElement('div');
+        section.className = 'char-field';
+
+        const header = document.createElement('div');
+        header.className = 'char-field-header';
+        header.innerHTML = `<span>${escapeHtml(f.label)}</span><span class="toggle-icon">▼</span>`;
+        header.addEventListener('click', () => section.classList.toggle('open'));
+
+        const body = document.createElement('div');
+        body.className = 'char-field-body';
+        body.textContent = f.value;
+
+        section.appendChild(header);
+        section.appendChild(body);
+        charFields.appendChild(section);
+      });
+
+      const first = charFields.querySelector('.char-field');
+      if (first) first.classList.add('open');
+    }
+
+    // ===== Swap avatar (card preview) =====
+    avatarSwapInput.addEventListener('change', () => {
+      if (avatarSwapInput.files.length > 0) {
+        const file = avatarSwapInput.files[0];
+        if (!file.type.startsWith('image/')) return;
+        currentImageBlob = file;
+        const url = URL.createObjectURL(file);
+        charAvatar.src = url;
+        exportImg.src = url;
+        showStatus('✅ 頭像已更換！輸出 PNG 時將使用新圖片。', 'success');
+      }
+    });
+
+    // ===== Swap export image =====
+    exportImgInput.addEventListener('change', () => {
+      if (exportImgInput.files.length > 0) {
+        const file = exportImgInput.files[0];
+        if (!file.type.startsWith('image/')) return;
+        currentImageBlob = file;
+        const url = URL.createObjectURL(file);
+        exportImg.src = url;
+        charAvatar.src = url;
+        showStatus('✅ 輸出圖片已更換！', 'success');
+      }
+    });
+
+    // ===== Download JSON (top action bar) =====
+    downloadJsonBtn.addEventListener('click', () => {
+      if (!charaJsonStr) return;
+      const blob = new Blob([charaJsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getExportName() + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ===== Download JSON (export section) =====
+    downloadJsonBtn2.addEventListener('click', () => {
+      if (!charaJsonStr) return;
+      const blob = new Blob([charaJsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = getExportName() + '.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // ===== Get export filename =====
+    function getExportName() {
+      const v = exportFilename.value.trim();
+      return v || currentFileName || 'character';
+    }
+
+    // ===== Copy JSON (action bar) =====
+    copyJsonBtn.addEventListener('click', () => {
+      if (!charaJsonStr) return;
+      navigator.clipboard.writeText(charaJsonStr).then(() => {
+        copyJsonBtn.textContent = '✅ 已複製';
+        copyJsonBtn.classList.add('copied');
+        setTimeout(() => {
+          copyJsonBtn.textContent = '📋 複製 JSON';
+          copyJsonBtn.classList.remove('copied');
+        }, 1500);
+      });
+    });
+
+    // ===== Copy JSON from editor =====
+    copyRawBtn.addEventListener('click', () => {
+      const text = jsonEditor.value || charaJsonStr;
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        copyRawBtn.textContent = '✅ 已複製';
+        copyRawBtn.classList.add('copied');
+        setTimeout(() => {
+          copyRawBtn.textContent = '📋 複製';
+          copyRawBtn.classList.remove('copied');
+        }, 1500);
+      });
+    });
+
+    // ===== Apply JSON edits =====
+    applyEditBtn.addEventListener('click', () => {
+      const text = jsonEditor.value.trim();
+      try {
+        const parsed = JSON.parse(text);
+        charaData = parsed;
+        charaJsonStr = JSON.stringify(charaData, null, 2);
+        jsonEditor.value = charaJsonStr;
+        jsonError.className = 'json-error';
+
+        // Refresh card & export
+        renderCharCard(charaData);
+        charCard.classList.add('show');
+        updateExportMeta();
+
+        showStatus('✅ JSON 變更已套用！', 'success');
+      } catch (err) {
+        jsonError.textContent = '❌ JSON 格式錯誤：' + err.message;
+        jsonError.className = 'json-error show';
+      }
+    });
+
+    // ===== Export PNG =====
+    exportPngBtn.addEventListener('click', async () => {
+      if (!charaData) return;
+      if (!currentImageBlob) {
+        showStatus('請先在輸出區上傳一張圖片。', 'error');
+        return;
+      }
+
+      exportPngBtn.disabled = true;
+      exportPngBtn.textContent = '⏳ 處理中…';
+
+      try {
+        // 1. Load image onto canvas
+        const img = await loadImage(currentImageBlob);
+        pngCanvas.width = img.naturalWidth;
+        pngCanvas.height = img.naturalHeight;
+        const ctx = pngCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        // 2. Get base PNG as ArrayBuffer
+        const pngBlob = await new Promise(resolve => pngCanvas.toBlob(resolve, 'image/png'));
+        const pngBuffer = new Uint8Array(await pngBlob.arrayBuffer());
+
+        // 3. Encode JSON → UTF-8 → base64
+        const jsonBytes = new TextEncoder().encode(charaJsonStr);
+        const b64Str = uint8ToBase64(jsonBytes);
+
+        // 4. Insert tEXt chunk before IEND
+        const pngWithChara = insertCharaChunk(pngBuffer, b64Str);
+
+        // 5. Download
+        const outBlob = new Blob([pngWithChara], { type: 'image/png' });
+        const url = URL.createObjectURL(outBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getExportName() + '.png';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        showStatus('✅ PNG 角色卡已下載！', 'success');
+      } catch (err) {
+        showStatus('輸出失敗：' + err.message, 'error');
+      } finally {
+        exportPngBtn.disabled = false;
+        exportPngBtn.textContent = '🖼️ 下載 PNG 角色卡';
+      }
+    });
+
+    // ===== PNG construction =====
+
+    function loadImage(blob) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('圖片載入失敗'));
+        img.src = URL.createObjectURL(blob);
+      });
+    }
+
+    function uint8ToBase64(bytes) {
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function insertCharaChunk(pngData, b64Value) {
+      // Find IEND position
+      let iendOffset = -1;
+      let offset = 8;
+
+      while (offset < pngData.length) {
+        const chunkLen = (pngData[offset] << 24) | (pngData[offset + 1] << 16) | (pngData[offset + 2] << 8) | pngData[offset + 3];
+        const chunkType = String.fromCharCode(pngData[offset + 4], pngData[offset + 5], pngData[offset + 6], pngData[offset + 7]);
+
+        if (chunkType === 'IEND') {
+          iendOffset = offset;
+          break;
+        }
+
+        offset += 4 + 4 + chunkLen + 4;
+      }
+
+      if (iendOffset === -1) throw new Error('PNG IEND chunk 未找到。');
+
+      // Build tEXt chunk
+      const keyword = 'chara';
+      const keyBytes = new TextEncoder().encode(keyword);
+      const valBytes = new TextEncoder().encode(b64Value);
+
+      const chunkDataLen = keyBytes.length + 1 + valBytes.length;
+      const chunkData = new Uint8Array(chunkDataLen);
+      chunkData.set(keyBytes, 0);
+      chunkData[keyBytes.length] = 0;
+      chunkData.set(valBytes, keyBytes.length + 1);
+
+      const typeBytes = new TextEncoder().encode('tEXt');
+      const chunkTotal = 4 + 4 + chunkDataLen + 4;
+      const chunk = new Uint8Array(chunkTotal);
+
+      // Length (big-endian)
+      chunk[0] = (chunkDataLen >> 24) & 0xFF;
+      chunk[1] = (chunkDataLen >> 16) & 0xFF;
+      chunk[2] = (chunkDataLen >> 8) & 0xFF;
+      chunk[3] = chunkDataLen & 0xFF;
+
+      // Type
+      chunk.set(typeBytes, 4);
+
+      // Data
+      chunk.set(chunkData, 8);
+
+      // CRC (over type + data)
+      const crcInput = new Uint8Array(4 + chunkDataLen);
+      crcInput.set(typeBytes, 0);
+      crcInput.set(chunkData, 4);
+      const crc = crc32(crcInput);
+      chunk[8 + chunkDataLen] = (crc >> 24) & 0xFF;
+      chunk[8 + chunkDataLen + 1] = (crc >> 16) & 0xFF;
+      chunk[8 + chunkDataLen + 2] = (crc >> 8) & 0xFF;
+      chunk[8 + chunkDataLen + 3] = crc & 0xFF;
+
+      // Assemble: before IEND + new chunk + IEND
+      const beforeIend = pngData.slice(0, iendOffset);
+      const iendChunk = pngData.slice(iendOffset);
+
+      const result = new Uint8Array(beforeIend.length + chunk.length + iendChunk.length);
+      result.set(beforeIend, 0);
+      result.set(chunk, beforeIend.length);
+      result.set(iendChunk, beforeIend.length + chunk.length);
+
+      return result;
+    }
+
+    // ===== CRC32 =====
+    const crc32Table = (() => {
+      const table = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) {
+          c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        }
+        table[n] = c;
+      }
+      return table;
+    })();
+
+    function crc32(data) {
+      let crc = 0xFFFFFFFF;
+      for (let i = 0; i < data.length; i++) {
+        crc = crc32Table[(crc ^ data[i]) & 0xFF] ^ (crc >>> 8);
+      }
+      return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    // ===== Syntax highlighting =====
+    function syntaxHighlight(json) {
+      return json.replace(
+        /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let cls = 'json-number';
+          if (/^"/.test(match)) {
+            cls = /:$/.test(match) ? 'json-key' : 'json-string';
+          } else if (/true|false/.test(match)) {
+            cls = 'json-bool';
+          } else if (/null/.test(match)) {
+            cls = 'json-null';
+          }
+          const escaped = match.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<span class="${cls}">${escaped}</span>`;
+        }
+      );
+    }
+
+    // ===== Utilities =====
+    function escapeHtml(str) {
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(2) + ' MB';
+    }
+  </script>
+
+</body>
+</html>

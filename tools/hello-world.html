@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hello World — Endman100 Tools</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    .hello-output {
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+      background: rgba(108, 99, 255, 0.08);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 1.6rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--accent-light);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+
+    .hello-output.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .hello-input-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .hello-input-group input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      font-size: 1rem;
+      font-family: var(--font);
+      outline: none;
+      transition: var(--transition);
+    }
+
+    .hello-input-group input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .hello-input-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    .btn-primary {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: var(--radius-sm);
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      color: #fff;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px var(--accent-glow);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .tool-description {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../index.html">首頁</a>
+        <a href="hello-world.html" class="active">Hello World</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tool Page -->
+  <main class="tool-page">
+    <a href="../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">👋</div>
+      <h1>Hello World</h1>
+    </div>
+
+    <div class="tool-content">
+      <p class="tool-description">
+        輸入你的名字，然後按下按鈕，看看這個世界會怎麼向你打招呼！
+      </p>
+
+      <div class="hello-input-group">
+        <input type="text" id="nameInput" placeholder="請輸入你的名字…" maxlength="50" />
+        <button class="btn-primary" id="greetBtn">打招呼</button>
+      </div>
+
+      <div class="hello-output" id="output"></div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    const input = document.getElementById('nameInput');
+    const btn = document.getElementById('greetBtn');
+    const output = document.getElementById('output');
+
+    function greet() {
+      const name = input.value.trim();
+      if (!name) {
+        output.textContent = 'Hello, World! 🌍';
+      } else {
+        output.textContent = `Hello, ${name}! 🎉`;
+      }
+      output.classList.add('show');
+    }
+
+    btn.addEventListener('click', greet);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') greet();
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ComfyUI Workflow Viewer — Endman100 Tools</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <style>
+    /* ===== Upload Area ===== */
+    .upload-area {
+      border: 2px dashed var(--border-hover);
+      border-radius: var(--radius);
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: var(--transition);
+      position: relative;
+      background: rgba(108, 99, 255, 0.03);
+    }
+
+    .upload-area:hover,
+    .upload-area.dragover {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.08);
+    }
+
+    .upload-area .upload-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .upload-area p {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+    }
+
+    .upload-area .upload-hint {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+    }
+
+    .upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    /* ===== Preview ===== */
+    .preview-section {
+      margin-top: 2rem;
+      display: none;
+    }
+
+    .preview-section.show {
+      display: block;
+    }
+
+    .preview-image-wrap {
+      margin-bottom: 1.5rem;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+      text-align: center;
+    }
+
+    .preview-image-wrap img {
+      max-width: 100%;
+      max-height: 400px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* ===== JSON Output ===== */
+    .json-tabs {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0;
+    }
+
+    .json-tab {
+      padding: 0.6rem 1.2rem;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: var(--font);
+    }
+
+    .json-tab.active {
+      background: var(--bg-card);
+      color: var(--accent-light);
+      border-color: var(--border-hover);
+    }
+
+    .json-tab:hover:not(.active) {
+      color: var(--text-secondary);
+    }
+
+    .json-output-wrap {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm);
+      background: var(--bg-secondary);
+      overflow: hidden;
+    }
+
+    .json-output {
+      padding: 1.25rem;
+      max-height: 500px;
+      overflow: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text-secondary);
+      tab-size: 2;
+    }
+
+    .json-output::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    .json-output::-webkit-scrollbar-thumb {
+      background: var(--border-hover);
+      border-radius: 3px;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.4rem 0.8rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      font-family: var(--font);
+      z-index: 2;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent-light);
+    }
+
+    .copy-btn.copied {
+      color: #4ade80;
+      border-color: #4ade80;
+    }
+
+    /* ===== Error / Empty ===== */
+    .status-msg {
+      margin-top: 1.5rem;
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    .status-msg.show {
+      display: block;
+    }
+
+    .status-msg.error {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+
+    .status-msg.info {
+      background: rgba(108, 99, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    .tool-description {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 1.5rem;
+    }
+
+    /* JSON syntax highlighting */
+    .json-key { color: #7dd3fc; }
+    .json-string { color: #86efac; }
+    .json-number { color: #fbbf24; }
+    .json-bool { color: #c084fc; }
+    .json-null { color: #9ca3af; }
+  </style>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../index.html">首頁</a>
+        <a href="comfyui-workflow.html" class="active">Workflow Viewer</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tool Page -->
+  <main class="tool-page">
+    <a href="../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎨</div>
+      <h1>ComfyUI Workflow Viewer</h1>
+    </div>
+
+    <div class="tool-content">
+      <p class="tool-description">
+        上傳 ComfyUI 產生的圖片（PNG），自動讀取嵌入的 Workflow JSON 並顯示。<br />
+        也可以直接上傳 <code>.json</code> 檔案來檢視。
+      </p>
+
+      <!-- Upload Area -->
+      <div class="upload-area" id="uploadArea">
+        <input type="file" id="fileInput" accept=".png,.json" />
+        <div class="upload-icon">📁</div>
+        <p>拖放圖片或 JSON 檔案至此處</p>
+        <p class="upload-hint">支援 .png（含 ComfyUI 元資料）和 .json 檔案</p>
+      </div>
+
+      <!-- Status -->
+      <div class="status-msg" id="statusMsg"></div>
+
+      <!-- Preview -->
+      <div class="preview-section" id="previewSection">
+        <div class="preview-image-wrap" id="imageWrap" style="display:none;">
+          <img id="previewImg" alt="Preview" />
+        </div>
+
+        <!-- JSON Tabs -->
+        <div class="json-tabs" id="jsonTabs"></div>
+
+        <!-- JSON Output -->
+        <div class="json-output-wrap">
+          <button class="copy-btn" id="copyBtn">📋 複製</button>
+          <div class="json-output" id="jsonOutput"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const statusMsg = document.getElementById('statusMsg');
+    const previewSection = document.getElementById('previewSection');
+    const imageWrap = document.getElementById('imageWrap');
+    const previewImg = document.getElementById('previewImg');
+    const jsonTabs = document.getElementById('jsonTabs');
+    const jsonOutput = document.getElementById('jsonOutput');
+    const copyBtn = document.getElementById('copyBtn');
+
+    let extractedData = {};
+    let currentTab = '';
+
+    // Drag & Drop
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length > 0) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleFile(fileInput.files[0]);
+      }
+    });
+
+    function showStatus(msg, type) {
+      statusMsg.textContent = msg;
+      statusMsg.className = `status-msg show ${type}`;
+    }
+
+    function hideStatus() {
+      statusMsg.className = 'status-msg';
+    }
+
+    function handleFile(file) {
+      hideStatus();
+      previewSection.classList.remove('show');
+      imageWrap.style.display = 'none';
+      extractedData = {};
+      currentTab = '';
+
+      if (file.name.toLowerCase().endsWith('.json')) {
+        handleJsonFile(file);
+      } else if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) {
+        handlePngFile(file);
+      } else {
+        showStatus('不支援的檔案格式，請上傳 .png 或 .json 檔案。', 'error');
+      }
+    }
+
+    function handleJsonFile(file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target.result);
+          extractedData['workflow'] = json;
+          renderTabs();
+          previewSection.classList.add('show');
+        } catch {
+          showStatus('JSON 檔案解析失敗，請確認格式正確。', 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function handlePngFile(file) {
+      // Show image preview
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      imageWrap.style.display = 'block';
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const buffer = e.target.result;
+          const chunks = parsePngChunks(new Uint8Array(buffer));
+          extractedData = chunks;
+
+          if (Object.keys(chunks).length === 0) {
+            showStatus('此圖片未包含 ComfyUI Workflow 元資料。', 'info');
+            previewSection.classList.add('show');
+            return;
+          }
+
+          renderTabs();
+          previewSection.classList.add('show');
+        } catch (err) {
+          showStatus('PNG 解析失敗：' + err.message, 'error');
+          previewSection.classList.add('show');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    /**
+     * Parse PNG tEXt / iTXt chunks to find ComfyUI metadata.
+     * ComfyUI stores data in tEXt chunks with keywords: "prompt", "workflow".
+     */
+    function parsePngChunks(data) {
+      const result = {};
+      const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
+
+      // Verify PNG signature
+      for (let i = 0; i < 8; i++) {
+        if (data[i] !== pngSignature[i]) {
+          throw new Error('不是有效的 PNG 檔案。');
+        }
+      }
+
+      let offset = 8;
+
+      while (offset < data.length) {
+        // Read chunk length (4 bytes, big-endian)
+        const length = (data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3];
+        offset += 4;
+
+        // Read chunk type (4 bytes)
+        const type = String.fromCharCode(data[offset], data[offset + 1], data[offset + 2], data[offset + 3]);
+        offset += 4;
+
+        if (type === 'tEXt') {
+          // tEXt: keyword\0text
+          const chunkData = data.slice(offset, offset + length);
+          const nullIdx = chunkData.indexOf(0);
+          if (nullIdx !== -1) {
+            const keyword = new TextDecoder('latin1').decode(chunkData.slice(0, nullIdx));
+            const text = new TextDecoder('utf-8').decode(chunkData.slice(nullIdx + 1));
+
+            if (['prompt', 'workflow'].includes(keyword.toLowerCase())) {
+              try {
+                result[keyword] = JSON.parse(text);
+              } catch {
+                result[keyword] = text;
+              }
+            }
+          }
+        } else if (type === 'iTXt') {
+          // iTXt: keyword\0compressionFlag\0compressionMethod\0languageTag\0translatedKeyword\0text
+          const chunkData = data.slice(offset, offset + length);
+          const nullIdx = chunkData.indexOf(0);
+          if (nullIdx !== -1) {
+            const keyword = new TextDecoder('latin1').decode(chunkData.slice(0, nullIdx));
+
+            if (['prompt', 'workflow'].includes(keyword.toLowerCase())) {
+              // Skip: compression flag(1) + compression method(1)
+              let pos = nullIdx + 3;
+              // Skip language tag
+              while (pos < chunkData.length && chunkData[pos] !== 0) pos++;
+              pos++; // skip null
+              // Skip translated keyword
+              while (pos < chunkData.length && chunkData[pos] !== 0) pos++;
+              pos++; // skip null
+
+              const text = new TextDecoder('utf-8').decode(chunkData.slice(pos));
+              try {
+                result[keyword] = JSON.parse(text);
+              } catch {
+                result[keyword] = text;
+              }
+            }
+          }
+        } else if (type === 'IEND') {
+          break;
+        }
+
+        // Skip chunk data + CRC (4 bytes)
+        offset += length + 4;
+      }
+
+      return result;
+    }
+
+    function renderTabs() {
+      jsonTabs.innerHTML = '';
+      const keys = Object.keys(extractedData);
+
+      keys.forEach((key, idx) => {
+        const tab = document.createElement('button');
+        tab.className = 'json-tab' + (idx === 0 ? ' active' : '');
+        tab.textContent = key;
+        tab.addEventListener('click', () => switchTab(key));
+        jsonTabs.appendChild(tab);
+      });
+
+      if (keys.length > 0) {
+        switchTab(keys[0]);
+      }
+    }
+
+    function switchTab(key) {
+      currentTab = key;
+
+      // Update tab active state
+      document.querySelectorAll('.json-tab').forEach(t => {
+        t.classList.toggle('active', t.textContent === key);
+      });
+
+      // Render JSON with syntax highlighting
+      const value = extractedData[key];
+      if (typeof value === 'object') {
+        jsonOutput.innerHTML = syntaxHighlight(JSON.stringify(value, null, 2));
+      } else {
+        jsonOutput.textContent = value;
+      }
+    }
+
+    function syntaxHighlight(json) {
+      return json.replace(
+        /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let cls = 'json-number';
+          if (/^"/.test(match)) {
+            cls = /:$/.test(match) ? 'json-key' : 'json-string';
+          } else if (/true|false/.test(match)) {
+            cls = 'json-bool';
+          } else if (/null/.test(match)) {
+            cls = 'json-null';
+          }
+          // Escape HTML to prevent XSS
+          const escaped = match.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<span class="${cls}">${escaped}</span>`;
+        }
+      );
+    }
+
+    // Copy button
+    copyBtn.addEventListener('click', () => {
+      const value = extractedData[currentTab];
+      const text = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '✅ 已複製';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.textContent = '📋 複製';
+          copyBtn.classList.remove('copied');
+        }, 1500);
+      });
+    });
+  </script>
+
+</body>
+</html>

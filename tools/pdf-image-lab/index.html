@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Image Lab — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">PDF Image Lab</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Tool Page -->
+  <main class="tool-page pdf-lab-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📄</div>
+      <div>
+        <h1>PDF Image Lab</h1>
+        <p class="pdf-lab-subtitle">拆分 PDF · 重排頁面 · 匯出 ZIP / PDF</p>
+      </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div id="upload-section">
+      <div class="tool-content">
+        <p class="tool-description">
+          上傳 PDF → 自動拆解成高品質圖片 → 拖曳調整順序 → 放大檢視 → 匯出新 PDF 或 ZIP。<br />
+          <small>所有處理完全在瀏覽器內完成，絕不上傳雲端。</small>
+        </p>
+
+        <div class="upload-area" id="drop-zone">
+          <input type="file" id="file-input" accept="application/pdf,image/*" multiple />
+          <div class="upload-icon">📄</div>
+          <p>拖曳 PDF 或圖片至此處，或點擊選擇檔案</p>
+          <p class="upload-hint">支援 PDF 與常見圖片格式（PNG、JPG、WebP 等）• 支援多檔一起上傳</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Section -->
+    <div id="progress-section" class="hidden">
+      <div class="tool-content">
+        <div class="pdf-progress-header">
+          <div>
+            <div class="pdf-progress-title">正在拆解 PDF…</div>
+            <div id="progress-text" class="pdf-progress-sub">高品質渲染中，請稍候</div>
+          </div>
+          <div id="progress-percent" class="pdf-progress-pct">0%</div>
+        </div>
+        <div class="pdf-progress-bar-wrap">
+          <div id="progress-bar" class="pdf-progress-bar" style="width:0%"></div>
+        </div>
+        <div class="pdf-progress-foot">
+          <span id="progress-pages">0 / 0 頁</span>
+          <span>2.5× 高解析度模式</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results-section" class="hidden">
+      <div class="pdf-results-header">
+        <div>
+          <h2 class="pdf-results-title">圖片預覽與編輯</h2>
+          <p id="results-summary" class="pdf-results-sub">拖曳卡片調整順序 · 點擊圖片放大檢視</p>
+        </div>
+        <div class="pdf-action-group">
+          <button onclick="exportToPDF()" class="pdf-btn-violet">📑 匯出為 PDF</button>
+          <button onclick="downloadAllAsZip()" class="pdf-btn-success">⬇ 下載全部 (ZIP)</button>
+          <button onclick="pickNewPdf()" class="pdf-btn-ghost">➕ 追加 PDF / 圖片</button>
+          <button onclick="resetAll()" class="pdf-btn-ghost">↺ 重新開始</button>
+          <input type="file" id="replace-input" accept="application/pdf,image/*" class="hidden" multiple />
+        </div>
+      </div>
+
+      <div id="images-grid" class="pdf-grid"></div>
+
+      <div class="pdf-grid-hint">
+        提示：拖曳卡片左上角 ⠿ 圖示調整順序，點擊圖片可放大檢視
+      </div>
+    </div>
+  </main>
+
+  <!-- Image Modal -->
+  <div id="image-modal" class="pdf-modal hidden" onclick="if(event.target===this)closeModal()">
+    <div class="pdf-modal-inner" onclick="event.stopImmediatePropagation()">
+      <div class="pdf-modal-header">
+        <span id="modal-page-text" class="pdf-modal-badge">第 1 頁</span>
+        <div class="pdf-modal-header-actions">
+          <button onclick="downloadCurrentModal()" class="pdf-btn-ghost pdf-btn-sm">⬇ 下載此圖</button>
+          <button onclick="closeModal()" class="pdf-modal-close">×</button>
+        </div>
+      </div>
+      <div class="pdf-modal-body">
+        <img id="modal-image" class="pdf-modal-img" alt="Preview" />
+      </div>
+      <div class="pdf-modal-footer">
+        <button onclick="prevImage()" class="pdf-btn-ghost pdf-btn-sm">← 上一張</button>
+        <span id="modal-counter" class="pdf-modal-counter"></span>
+        <button onclick="nextImage()" class="pdf-btn-ghost pdf-btn-sm">下一張 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script src="./index.js"></script>
+</body>
+</html>

@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>貼圖切割工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    #preview-canvas { cursor: default; user-select: none; }
+    #preview-canvas.drag-col { cursor: col-resize; }
+    #preview-canvas.drag-row { cursor: row-resize; }
+  </style>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">貼圖切割</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">✂️</div>
+      <div>
+        <h1>貼圖切割工具</h1>
+        <p>上傳貼圖圖片，依 N×M 格線裁切後打包成 ZIP 下載</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="card" id="upload-card">
+      <div class="card-title">① 上傳貼圖圖片</div>
+      <div class="upload-area" id="drop-zone">
+        <input type="file" id="file-input" accept="image/*" />
+        <div class="upload-icon">🖼️</div>
+        <p>拖曳圖片至此處，或點擊選擇檔案</p>
+        <p class="upload-hint">支援 PNG、JPG、WebP、GIF 等常見圖片格式 · 所有處理均在瀏覽器本地完成</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Settings + Preview (hidden until image loaded) -->
+    <div id="settings-preview-section" class="hidden">
+
+      <!-- Settings -->
+      <div class="card">
+        <div class="card-title">② 設定切割格數</div>
+        <div class="settings-row">
+          <div class="setting-group">
+            <label for="grid-cols">欄（N）</label>
+            <input type="number" id="grid-cols" value="3" min="1" max="20" />
+          </div>
+          <div class="setting-group">
+            <label for="grid-rows">列（M）</label>
+            <input type="number" id="grid-rows" value="3" min="1" max="20" />
+          </div>
+          <span class="setting-desc">共切割成 <strong id="total-display">9</strong> 張</span>
+          <button class="btn btn-ghost" id="reset-lines-btn">⟳ 重置為均等</button>
+          <button class="btn btn-ghost" id="reset-btn">↺ 重新上傳</button>
+        </div>
+      </div>
+
+      <!-- Preview -->
+      <div class="card preview-section">
+        <div class="preview-header">
+          <div class="card-title" style="margin-bottom:0">③ 網格預覽
+            <span style="font-size:0.78rem;font-weight:400;color:var(--text-muted);margin-left:0.5rem">拖曳格線可自由調整裁切位置</span>
+          </div>
+          <span class="preview-meta" id="img-meta"></span>
+        </div>
+        <div class="preview-canvas-wrap">
+          <canvas id="preview-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Thumbnails -->
+      <div class="card thumb-section" id="thumb-card">
+        <div class="thumb-header">裁切預覽（<span id="thumb-count">9</span> 張）</div>
+        <div id="thumb-grid"></div>
+      </div>
+
+    </div>
+
+    <!-- Action Bar (sticky bottom) -->
+    <div class="action-bar hidden" id="action-bar">
+      <div class="action-bar-info" id="action-info">
+        共 <strong id="action-total">9</strong> 張
+      </div>
+      <div class="action-bar-btns">
+        <div id="dl-progress-wrap" class="hidden" style="display:flex;align-items:center;gap:0.75rem;">
+          <span id="dl-progress-text" style="font-size:0.85rem;color:var(--text-muted)">打包中…</span>
+          <div class="progress-bar-wrap" style="width:120px">
+            <div class="progress-bar" id="dl-progress-bar"></div>
+          </div>
+        </div>
+        <button class="btn btn-success" id="download-btn">⬇ 下載 ZIP</button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let originalImage = null;
+let cols = 3, rows = 3;
+// vLines[i] : fraction of image width where the i-th vertical divider sits (0..1)
+// hLines[j] : fraction of image height where the j-th horizontal divider sits (0..1)
+let vLines = [], hLines = [];
+
+// Drag state
+const DRAG_HIT  = 8;   // hit area in css pixels
+const MIN_FRAC  = 0.01;
+let dragState = null;  // { type:'v'|'h', idx:number, startFrac:number }
+let hoverHit  = null;  // { type:'v'|'h', idx:number }
+
+// ─── DOM refs ────────────────────────────────────────────────────────────────
+const fileInput       = document.getElementById('file-input');
+const dropZone        = document.getElementById('drop-zone');
+const colsInput       = document.getElementById('grid-cols');
+const rowsInput       = document.getElementById('grid-rows');
+const totalDisplay    = document.getElementById('total-display');
+const settingsSection = document.getElementById('settings-preview-section');
+const uploadCard      = document.getElementById('upload-card');
+const previewCanvas   = document.getElementById('preview-canvas');
+const imgMeta         = document.getElementById('img-meta');
+const thumbGrid       = document.getElementById('thumb-grid');
+const thumbCount      = document.getElementById('thumb-count');
+const actionBar       = document.getElementById('action-bar');
+const actionTotal     = document.getElementById('action-total');
+const downloadBtn     = document.getElementById('download-btn');
+const resetBtn        = document.getElementById('reset-btn');
+const resetLinesBtn   = document.getElementById('reset-lines-btn');
+const dlProgressWrap  = document.getElementById('dl-progress-wrap');
+const dlProgressBar   = document.getElementById('dl-progress-bar');
+const dlProgressText  = document.getElementById('dl-progress-text');
+
+// ─── Upload / Drag & Drop ─────────────────────────────────────────────────────
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadImageFile(fileInput.files[0]);
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('dragover');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) loadImageFile(f);
+});
+
+function loadImageFile(file) {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    originalImage = img;
+    settingsSection.classList.remove('hidden');
+    uploadCard.querySelector('.upload-area').style.opacity = '0.5';
+    uploadCard.querySelector('.upload-area input').style.pointerEvents = 'none';
+    actionBar.classList.remove('hidden');
+    initLines();
+    updateAll();
+  };
+  img.onerror = () => alert('無法載入圖片，請確認格式正確。');
+  img.src = url;
+}
+
+// ─── Lines init ───────────────────────────────────────────────────────────────
+function initLines() {
+  vLines = [];
+  for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  hLines = [];
+  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+}
+
+function resetLinesUniform() {
+  vLines = [];
+  for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  hLines = [];
+  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+  updateAll();
+}
+
+// ─── Input handlers ───────────────────────────────────────────────────────────
+function clampInt(v, min, max) { return Math.min(max, Math.max(min, isNaN(v) ? min : v)); }
+
+colsInput.addEventListener('input', () => {
+  cols = clampInt(parseInt(colsInput.value, 10), 1, 20);
+  colsInput.value = cols;
+  if (!originalImage) return;
+  // Rebuild vLines evenly
+  vLines = [];
+  for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  updateAll();
+});
+rowsInput.addEventListener('input', () => {
+  rows = clampInt(parseInt(rowsInput.value, 10), 1, 20);
+  rowsInput.value = rows;
+  if (!originalImage) return;
+  hLines = [];
+  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+  updateAll();
+});
+
+resetBtn.addEventListener('click', () => {
+  originalImage = null;
+  fileInput.value = '';
+  settingsSection.classList.add('hidden');
+  actionBar.classList.add('hidden');
+  uploadCard.querySelector('.upload-area').style.opacity = '';
+  uploadCard.querySelector('.upload-area input').style.pointerEvents = '';
+  thumbGrid.innerHTML = '';
+  dragState = null; hoverHit = null;
+});
+
+resetLinesBtn.addEventListener('click', resetLinesUniform);
+
+// ─── Update everything ────────────────────────────────────────────────────────
+function updateAll() {
+  if (!originalImage) return;
+  const total = cols * rows;
+  totalDisplay.textContent = total;
+  thumbCount.textContent   = total;
+  actionTotal.textContent  = total;
+  imgMeta.textContent = `原始尺寸：${originalImage.width} × ${originalImage.height} px`;
+  drawPreview();
+  renderThumbs();
+}
+
+// ─── Canvas helpers ───────────────────────────────────────────────────────────
+const MAX_PREVIEW_W = 720;
+
+function getDispSize() {
+  const scale = Math.min(1, MAX_PREVIEW_W / originalImage.width);
+  return { w: Math.round(originalImage.width * scale), h: Math.round(originalImage.height * scale), scale };
+}
+
+// Convert a CSS-pixel mouse event on the canvas to a [fracX, fracY] (0..1) coordinate
+function canvasEventToFrac(e) {
+  const rect   = previewCanvas.getBoundingClientRect();
+  const cssX   = e.clientX - rect.left;
+  const cssY   = e.clientY - rect.top;
+  const scaleX = previewCanvas.width  / rect.width;
+  const scaleY = previewCanvas.height / rect.height;
+  return [ (cssX * scaleX) / previewCanvas.width, (cssY * scaleY) / previewCanvas.height ];
+}
+
+// Returns hit { type:'v'|'h', idx } or null, given CSS-pixel coords on canvas
+function findHit(e) {
+  const rect   = previewCanvas.getBoundingClientRect();
+  const cssX   = e.clientX - rect.left;
+  const cssY   = e.clientY - rect.top;
+
+  // Check vertical lines first
+  for (let i = 0; i < vLines.length; i++) {
+    const lineX = vLines[i] * rect.width;
+    if (Math.abs(cssX - lineX) <= DRAG_HIT) return { type: 'v', idx: i };
+  }
+  for (let j = 0; j < hLines.length; j++) {
+    const lineY = hLines[j] * rect.height;
+    if (Math.abs(cssY - lineY) <= DRAG_HIT) return { type: 'h', idx: j };
+  }
+  return null;
+}
+
+// ─── Draw preview canvas ──────────────────────────────────────────────────────
+function drawPreview() {
+  const { w: dispW, h: dispH } = getDispSize();
+  previewCanvas.width  = dispW;
+  previewCanvas.height = dispH;
+
+  const ctx = previewCanvas.getContext('2d');
+  ctx.clearRect(0, 0, dispW, dispH);
+  ctx.drawImage(originalImage, 0, 0, dispW, dispH);
+
+  // ── Cell boundaries in pixels ──
+  const allVx = [0, ...vLines.map(f => f * dispW), dispW];  // length = cols+1
+  const allHy = [0, ...hLines.map(f => f * dispH), dispH];  // length = rows+1
+
+  // ── Draw grid lines ──
+  ctx.save();
+  ctx.lineWidth   = 2;
+  ctx.shadowBlur  = 4;
+
+  for (let i = 1; i < allVx.length - 1; i++) {
+    const isHover = hoverHit && hoverHit.type === 'v' && hoverHit.idx === i - 1;
+    ctx.strokeStyle = isHover ? 'rgba(255, 210, 80, 0.95)' : 'rgba(108, 99, 255, 0.85)';
+    ctx.shadowColor = isHover ? 'rgba(255, 210, 80, 0.5)'  : 'rgba(108, 99, 255, 0.5)';
+    ctx.beginPath();
+    ctx.moveTo(allVx[i], 0);
+    ctx.lineTo(allVx[i], dispH);
+    ctx.stroke();
+  }
+  for (let j = 1; j < allHy.length - 1; j++) {
+    const isHover = hoverHit && hoverHit.type === 'h' && hoverHit.idx === j - 1;
+    ctx.strokeStyle = isHover ? 'rgba(255, 210, 80, 0.95)' : 'rgba(108, 99, 255, 0.85)';
+    ctx.shadowColor = isHover ? 'rgba(255, 210, 80, 0.5)'  : 'rgba(108, 99, 255, 0.5)';
+    ctx.beginPath();
+    ctx.moveTo(0, allHy[j]);
+    ctx.lineTo(dispW, allHy[j]);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // ── Cell index labels ──
+  ctx.save();
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx  = (allVx[col] + allVx[col + 1]) / 2;
+      const cy  = (allHy[row] + allHy[row + 1]) / 2;
+      const cw  = allVx[col + 1] - allVx[col];
+      const ch  = allHy[row + 1] - allHy[row];
+      const fs  = Math.max(10, Math.round(Math.min(cw, ch) * 0.22));
+      const idx = row * cols + col + 1;
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillText(idx, cx + 1, cy + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      ctx.fillText(idx, cx, cy);
+    }
+  }
+  ctx.restore();
+}
+
+// ─── Drag interaction on preview canvas ───────────────────────────────────────
+previewCanvas.addEventListener('mousemove', e => {
+  if (dragState) {
+    const [fx, fy] = canvasEventToFrac(e);
+    if (dragState.type === 'v') {
+      const prev = dragState.idx > 0            ? vLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
+      const next = dragState.idx < vLines.length - 1 ? vLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
+      vLines[dragState.idx] = Math.min(next, Math.max(prev, fx));
+    } else {
+      const prev = dragState.idx > 0            ? hLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
+      const next = dragState.idx < hLines.length - 1 ? hLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
+      hLines[dragState.idx] = Math.min(next, Math.max(prev, fy));
+    }
+    drawPreview();
+    return;
+  }
+
+  hoverHit = findHit(e);
+  if (hoverHit) {
+    previewCanvas.classList.toggle('drag-col', hoverHit.type === 'v');
+    previewCanvas.classList.toggle('drag-row', hoverHit.type === 'h');
+  } else {
+    previewCanvas.classList.remove('drag-col', 'drag-row');
+  }
+  drawPreview();
+});
+
+previewCanvas.addEventListener('mousedown', e => {
+  const hit = findHit(e);
+  if (!hit) return;
+  dragState = { type: hit.type, idx: hit.idx };
+  hoverHit  = hit;
+  e.preventDefault();
+});
+
+previewCanvas.addEventListener('mouseup', () => {
+  if (!dragState) return;
+  dragState = null;
+  renderThumbs();  // update thumbs only on release (perf)
+});
+
+previewCanvas.addEventListener('mouseleave', () => {
+  if (dragState) { dragState = null; renderThumbs(); }
+  hoverHit = null;
+  previewCanvas.classList.remove('drag-col', 'drag-row');
+  drawPreview();
+});
+
+// Touch support
+previewCanvas.addEventListener('touchstart', e => {
+  const hit = findHitFromTouch(e);
+  if (!hit) return;
+  dragState = { type: hit.type, idx: hit.idx };
+  hoverHit  = hit;
+  e.preventDefault();
+}, { passive: false });
+
+previewCanvas.addEventListener('touchmove', e => {
+  if (!dragState) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const fakeEvt = { clientX: touch.clientX, clientY: touch.clientY };
+  const [fx, fy] = canvasEventToFrac(fakeEvt);
+  if (dragState.type === 'v') {
+    const prev = dragState.idx > 0                ? vLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
+    const next = dragState.idx < vLines.length - 1 ? vLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
+    vLines[dragState.idx] = Math.min(next, Math.max(prev, fx));
+  } else {
+    const prev = dragState.idx > 0                ? hLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
+    const next = dragState.idx < hLines.length - 1 ? hLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
+    hLines[dragState.idx] = Math.min(next, Math.max(prev, fy));
+  }
+  drawPreview();
+}, { passive: false });
+
+previewCanvas.addEventListener('touchend', () => {
+  if (!dragState) return;
+  dragState = null;
+  hoverHit  = null;
+  renderThumbs();
+});
+
+function findHitFromTouch(e) {
+  const touch = e.touches[0];
+  return findHit({ clientX: touch.clientX, clientY: touch.clientY });
+}
+
+// ─── Render thumbnail grid ────────────────────────────────────────────────────
+function renderThumbs() {
+  thumbGrid.innerHTML = '';
+  const gridCols = Math.min(cols, 10);
+  thumbGrid.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+
+  const srcW = originalImage.width;
+  const srcH = originalImage.height;
+  const allVx = [0, ...vLines.map(f => f * srcW), srcW];
+  const allHy = [0, ...hLines.map(f => f * srcH), srcH];
+  const THUMB = 120;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const sx = allVx[col], sw = allVx[col + 1] - allVx[col];
+      const sy = allHy[row], sh = allHy[row + 1] - allHy[row];
+
+      const item = document.createElement('div');
+      item.className = 'thumb-item';
+
+      const c = document.createElement('canvas');
+      c.width  = THUMB;
+      c.height = THUMB;
+      c.getContext('2d').drawImage(originalImage, sx, sy, sw, sh, 0, 0, THUMB, THUMB);
+
+      const lbl = document.createElement('span');
+      lbl.className   = 'thumb-label';
+      lbl.textContent = `${row + 1},${col + 1}`;
+
+      item.appendChild(c);
+      item.appendChild(lbl);
+      thumbGrid.appendChild(item);
+    }
+  }
+}
+
+// ─── Download ZIP ─────────────────────────────────────────────────────────────
+downloadBtn.addEventListener('click', async () => {
+  if (!originalImage) return;
+
+  downloadBtn.disabled = true;
+  dlProgressWrap.classList.remove('hidden');
+  dlProgressWrap.style.display = 'flex';
+
+  const srcW   = originalImage.width;
+  const srcH   = originalImage.height;
+  const allVx  = [0, ...vLines.map(f => f * srcW), srcW];
+  const allHy  = [0, ...hLines.map(f => f * srcH), srcH];
+  const total  = cols * rows;
+  const zip    = new JSZip();
+  const offC   = document.createElement('canvas');
+  const offCtx = offC.getContext('2d');
+
+  let done = 0;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const sx = allVx[col],   sw = allVx[col + 1] - allVx[col];
+      const sy = allHy[row],   sh = allHy[row + 1] - allHy[row];
+      offC.width  = Math.round(sw);
+      offC.height = Math.round(sh);
+      offCtx.clearRect(0, 0, offC.width, offC.height);
+      offCtx.drawImage(originalImage, sx, sy, sw, sh, 0, 0, offC.width, offC.height);
+
+      const blob = await new Promise(r => offC.toBlob(r, 'image/png'));
+      zip.file(
+        `sticker_r${String(row + 1).padStart(2, '0')}_c${String(col + 1).padStart(2, '0')}.png`,
+        await blob.arrayBuffer()
+      );
+
+      done++;
+      dlProgressBar.style.width  = Math.round(done / total * 100) + '%';
+      dlProgressText.textContent = `打包中… ${done}/${total}`;
+      if (done % 4 === 0) await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  dlProgressText.textContent = '壓縮中…';
+  const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
+  const url = URL.createObjectURL(zipBlob);
+  Object.assign(document.createElement('a'), { href: url, download: `stickers_${cols}x${rows}.zip` }).click();
+  URL.revokeObjectURL(url);
+
+  dlProgressWrap.classList.add('hidden');
+  dlProgressWrap.style.display = '';
+  dlProgressBar.style.width    = '0%';
+  downloadBtn.disabled         = false;
+});
+</script>
+
+</body>
+</html>

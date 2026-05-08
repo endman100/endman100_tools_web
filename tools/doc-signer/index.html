@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>文件簽名工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">文件簽名工具</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">✍️</div>
+      <div>
+        <h1>文件簽名工具</h1>
+        <p>上傳圖片或 PDF，在文件上手寫簽名後匯出 PNG / PDF</p>
+      </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div id="upload-section">
+      <div class="upload-area" id="drop-zone">
+        <input type="file" id="file-input" accept="image/*,application/pdf" />
+        <div class="upload-icon">📄</div>
+        <h3>拖曳文件至此或點擊上傳</h3>
+        <p>支援 JPG、PNG、PDF 格式</p>
+        <p class="upload-hint">PDF 將自動解析為圖片供簽名 • 多頁 PDF 支援逐頁切換</p>
+        <div class="upload-types">
+          <span>🖼 JPG / PNG</span>
+          <span>📑 PDF</span>
+        </div>
+      </div>
+      <p class="upload-privacy">
+        🔒 所有處理皆在瀏覽器本地完成，文件不會上傳至伺服器
+      </p>
+    </div>
+
+    <!-- Editor Section -->
+    <div id="editor-section" class="hidden">
+
+      <!-- Left Sidebar: File info + Signature settings -->
+      <div class="left-sidebar">
+        <!-- File Info -->
+        <div class="sidebar-card">
+          <div class="section-label">📁 目前文件</div>
+          <div class="file-info-box">
+            <div id="file-icon" class="file-info-icon">📄</div>
+            <div style="min-width:0;flex:1;">
+              <div id="file-name" class="file-info-name">—</div>
+              <div id="file-details" class="file-info-details">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Signature Settings -->
+        <div class="sidebar-card">
+          <div class="section-label">✏️ 簽名設定</div>
+
+          <div class="control-row">
+            <label>簽名顏色</label>
+            <div class="color-row">
+              <input type="color" id="color-picker" value="#1e40af" />
+              <span id="color-hex" class="color-hex">#1e40af</span>
+            </div>
+          </div>
+
+          <div class="control-row">
+            <div class="size-header">
+              <label>筆刷大小</label>
+              <span id="size-badge" class="size-badge">8</span>
+            </div>
+            <input type="range" id="size-slider" min="2" max="30" step="1" value="8" />
+            <div class="range-labels"><span>細</span><span>粗</span></div>
+          </div>
+
+          <button class="btn btn-ghost" id="undo-btn" onclick="undoSignature()" disabled>
+            <i class="fa-solid fa-rotate-left"></i> 撤銷上一步
+          </button>
+          <button class="btn btn-ghost" onclick="clearSignature()">
+            <i class="fa-solid fa-eraser"></i> 清除簽名
+          </button>
+          <button class="btn btn-muted" onclick="resetDocument()">
+            <i class="fa-solid fa-undo"></i> 重置文件
+          </button>
+
+          <div class="sidebar-hint">
+            在右方畫布上直接拖曳滑鼠或手指簽名<br>
+            支援觸控筆與平板 (iPad / Surface)<br>
+            <strong>快捷鍵：</strong>ESC 清除 · R 重置 · Ctrl+S 匯出 · Ctrl+Z 撤銷
+          </div>
+        </div>
+      </div>
+
+      <!-- Center: Canvas -->
+      <div class="canvas-panel">
+        <div class="canvas-toolbar">
+          <div class="canvas-toolbar-left">
+            <span class="canvas-title">預覽與簽名區</span>
+            <span id="page-badge" class="page-badge hidden"></span>
+          </div>
+          <div id="page-controls" class="page-nav hidden">
+            <button class="page-nav-btn" id="prev-btn" onclick="prevPage()">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <span class="page-nav-text" id="page-text">1 / 1</span>
+            <button class="page-nav-btn" id="next-btn" onclick="nextPage()">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="canvas-wrapper">
+          <div class="canvas-inner" id="canvas-inner">
+            <canvas id="document-canvas"></canvas>
+            <canvas id="signature-canvas"></canvas>
+          </div>
+        </div>
+
+        <p class="canvas-hint">直接在畫布上簽名 · 簽名即時疊加顯示</p>
+      </div>
+
+      <!-- Right Sidebar: Export -->
+      <div class="right-sidebar">
+        <div class="sidebar-card">
+          <div class="section-label">⬇️ 匯出選項</div>
+
+          <button class="btn btn-success" onclick="exportAsImage()">
+            <i class="fa-solid fa-image"></i>
+            <span class="btn-export-label">
+              匯出為圖片
+              <span class="sub">PNG 格式 · 高品質</span>
+            </span>
+          </button>
+
+          <button class="btn btn-purple" onclick="exportAsPDF()">
+            <i class="fa-solid fa-file-pdf"></i>
+            <span class="btn-export-label">
+              匯出為 PDF
+              <span class="sub">單頁 PDF · 含簽名</span>
+            </span>
+          </button>
+
+          <div class="sidebar-hint">
+            匯出的檔案包含您目前頁面的簽名<br>
+            所有操作皆在本地完成，隱私安全
+          </div>
+        </div>
+
+        <div class="sidebar-card" style="margin-top:1rem;">
+          <div class="section-label">🔄 其他操作</div>
+          <button class="btn btn-muted" onclick="resetToUpload()">
+            <i class="fa-solid fa-plus"></i> 重新選擇文件
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden">
+    <span class="toast-icon">✅</span>
+    <span id="toast-text"></span>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    // ─── Global state ───────────────────────────────────────────
+    let pdfDoc = null;
+    let currentPage = 1;
+    let totalPages = 1;
+    let isPDF = false;
+    let originalFileName = '';
+    let currentColor = '#1e40af';
+    let currentSize = 8;
+    let isDrawing = false;
+    let lastX = 0, lastY = 0;
+    let currentDocumentImage = null;
+    let signatureHistory = [];   // undo stack (ImageData snapshots)
+    const MAX_HISTORY = 30;
+
+    let documentCanvas, signatureCanvas, docCtx, sigCtx;
+
+    // ─── Init ────────────────────────────────────────────────────
+    function initCanvases() {
+      documentCanvas = document.getElementById('document-canvas');
+      signatureCanvas = document.getElementById('signature-canvas');
+      docCtx = documentCanvas.getContext('2d', { alpha: false });
+      sigCtx = signatureCanvas.getContext('2d', { alpha: true });
+
+      setCanvasSize(600, 800);
+
+      // Mouse
+      signatureCanvas.addEventListener('mousedown', startDrawing);
+      signatureCanvas.addEventListener('mousemove', draw);
+      signatureCanvas.addEventListener('mouseup', stopDrawing);
+      signatureCanvas.addEventListener('mouseleave', stopDrawing);
+
+      // Touch (tablet / iPad)
+      signatureCanvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+      signatureCanvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+      signatureCanvas.addEventListener('touchend', stopDrawing);
+      signatureCanvas.addEventListener('touchcancel', stopDrawing);
+
+      document.getElementById('color-picker').addEventListener('input', e => {
+        currentColor = e.target.value;
+        document.getElementById('color-hex').textContent = currentColor;
+      });
+
+      document.getElementById('size-slider').addEventListener('input', e => {
+        currentSize = parseInt(e.target.value);
+        document.getElementById('size-badge').textContent = currentSize;
+      });
+    }
+
+    function setCanvasSize(w, h) {
+      documentCanvas.width = w;
+      documentCanvas.height = h;
+      signatureCanvas.width = w;
+      signatureCanvas.height = h;
+    }
+
+    // ─── Drawing ─────────────────────────────────────────────────
+    function getPointerPos(e) {
+      const rect = signatureCanvas.getBoundingClientRect();
+      const scaleX = signatureCanvas.width / rect.width;
+      const scaleY = signatureCanvas.height / rect.height;
+      const clientX = e.clientX ?? e.touches[0].clientX;
+      const clientY = e.clientY ?? e.touches[0].clientY;
+      return {
+        x: (clientX - rect.left) * scaleX,
+        y: (clientY - rect.top) * scaleY
+      };
+    }
+
+    function startDrawing(e) {
+      isDrawing = true;
+      const pos = getPointerPos(e);
+      lastX = pos.x;
+      lastY = pos.y;
+      sigCtx.fillStyle = currentColor;
+      sigCtx.beginPath();
+      sigCtx.arc(lastX, lastY, currentSize / 2, 0, Math.PI * 2);
+      sigCtx.fill();
+    }
+
+    function draw(e) {
+      if (!isDrawing) return;
+      const pos = getPointerPos(e);
+      sigCtx.strokeStyle = currentColor;
+      sigCtx.lineWidth = currentSize;
+      sigCtx.lineJoin = 'round';
+      sigCtx.lineCap = 'round';
+      sigCtx.beginPath();
+      sigCtx.moveTo(lastX, lastY);
+      sigCtx.lineTo(pos.x, pos.y);
+      sigCtx.stroke();
+      lastX = pos.x;
+      lastY = pos.y;
+    }
+
+    function stopDrawing() {
+      if (!isDrawing) return;
+      isDrawing = false;
+      pushHistory();
+    }
+
+    function handleTouchStart(e) { e.preventDefault(); startDrawing(e); }
+    function handleTouchMove(e)  { e.preventDefault(); draw(e); }
+
+    // ─── Undo history ────────────────────────────────────────────
+    function pushHistory() {
+      const snap = sigCtx.getImageData(0, 0, signatureCanvas.width, signatureCanvas.height);
+      signatureHistory.push(snap);
+      if (signatureHistory.length > MAX_HISTORY) signatureHistory.shift();
+      updateUndoBtn();
+    }
+
+    function undoSignature() {
+      if (signatureHistory.length === 0) return;
+      signatureHistory.pop();
+      if (signatureHistory.length > 0) {
+        sigCtx.putImageData(signatureHistory[signatureHistory.length - 1], 0, 0);
+      } else {
+        sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      }
+      updateUndoBtn();
+      showToast('已撤銷上一步');
+    }
+
+    function updateUndoBtn() {
+      const btn = document.getElementById('undo-btn');
+      if (btn) btn.disabled = signatureHistory.length === 0;
+    }
+
+    function clearHistory() {
+      signatureHistory = [];
+      updateUndoBtn();
+    }
+
+    // ─── Actions ─────────────────────────────────────────────────
+    function clearSignature() {
+      sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      clearHistory();
+      showToast('簽名已清除');
+    }
+
+    function resetDocument() {
+      if (isPDF && pdfDoc) {
+        renderPDFPage(currentPage);
+      } else if (currentDocumentImage) {
+        docCtx.clearRect(0, 0, documentCanvas.width, documentCanvas.height);
+        docCtx.drawImage(currentDocumentImage, 0, 0, documentCanvas.width, documentCanvas.height);
+      }
+      sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      clearHistory();
+      showToast('文件已重置');
+    }
+
+    function mergeCanvases() {
+      const merged = document.createElement('canvas');
+      merged.width = documentCanvas.width;
+      merged.height = documentCanvas.height;
+      const ctx = merged.getContext('2d');
+      ctx.drawImage(documentCanvas, 0, 0);
+      ctx.drawImage(signatureCanvas, 0, 0);
+      return merged;
+    }
+
+    function exportAsImage() {
+      const merged = mergeCanvases();
+      const link = document.createElement('a');
+      link.download = (originalFileName || 'signed_document') + '.png';
+      link.href = merged.toDataURL('image/png');
+      link.click();
+      showToast('PNG 圖片已下載');
+    }
+
+    function exportAsPDF() {
+      const { jsPDF } = window.jspdf;
+      const merged = mergeCanvases();
+      const w = merged.width, h = merged.height;
+      const pdf = new jsPDF({
+        orientation: w > h ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [w, h]
+      });
+      pdf.addImage(merged.toDataURL('image/png'), 'PNG', 0, 0, w, h);
+      pdf.save((originalFileName || 'signed_document') + '.pdf');
+      showToast('PDF 已下載');
+    }
+
+    // ─── PDF rendering ───────────────────────────────────────────
+    async function renderPDFPage(pageNum) {
+      if (!pdfDoc) return;
+      const page = await pdfDoc.getPage(pageNum);
+      const baseViewport = page.getViewport({ scale: 1.8 });
+      const maxWidth = Math.min(780, window.innerWidth - 140);
+      const scale = baseViewport.width > maxWidth ? maxWidth / baseViewport.width : 1;
+      const vp = page.getViewport({ scale });
+      const w = Math.floor(vp.width), h = Math.floor(vp.height);
+
+      setCanvasSize(w, h);
+      await page.render({ canvasContext: docCtx, viewport: vp }).promise;
+      sigCtx.clearRect(0, 0, w, h);
+      clearHistory();
+
+      // cache snapshot for reset
+      currentDocumentImage = new Image();
+      currentDocumentImage.src = documentCanvas.toDataURL();
+
+      document.getElementById('page-text').textContent = `${pageNum} / ${totalPages}`;
+      document.getElementById('page-badge').textContent =
+        `📑 第 ${pageNum} 頁 / 共 ${totalPages} 頁`;
+    }
+
+    // ─── File loading ────────────────────────────────────────────
+    function loadImageFile(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        const img = new Image();
+        img.onload = () => {
+          isPDF = false; pdfDoc = null;
+          const maxW = 780, maxH = 960;
+          let w = img.width, h = img.height;
+          if (w > maxW) { h = Math.floor(h * maxW / w); w = maxW; }
+          if (h > maxH) { w = Math.floor(w * maxH / h); h = maxH; }
+          setCanvasSize(w, h);
+          docCtx.drawImage(img, 0, 0, w, h);
+          currentDocumentImage = img;
+          sigCtx.clearRect(0, 0, w, h);
+          clearHistory();
+          hidePageControls();
+          showToast('圖片已載入，可以開始簽名');
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadPDFFile(file) {
+      const reader = new FileReader();
+      reader.onload = async e => {
+        try {
+          const typedArray = new Uint8Array(e.target.result);
+          pdfDoc = await pdfjsLib.getDocument({ data: typedArray }).promise;
+          totalPages = pdfDoc.numPages;
+          currentPage = 1;
+          isPDF = true;
+          await renderPDFPage(currentPage);
+          showPageControls();
+          showToast(`PDF 已載入，共 ${totalPages} 頁`);
+        } catch (err) {
+          console.error(err);
+          alert('無法讀取 PDF 文件，請確認檔案是否完整。');
+          resetToUpload();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function showPageControls() {
+      document.getElementById('page-badge').classList.remove('hidden');
+      if (totalPages > 1) {
+        document.getElementById('page-controls').classList.remove('hidden');
+        document.getElementById('prev-btn').disabled = currentPage === 1;
+        document.getElementById('next-btn').disabled = currentPage === totalPages;
+      }
+    }
+
+    function hidePageControls() {
+      document.getElementById('page-badge').classList.add('hidden');
+      document.getElementById('page-controls').classList.add('hidden');
+    }
+
+    async function prevPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        await renderPDFPage(currentPage);
+        document.getElementById('prev-btn').disabled = currentPage === 1;
+        document.getElementById('next-btn').disabled = false;
+      }
+    }
+
+    async function nextPage() {
+      if (currentPage < totalPages) {
+        currentPage++;
+        await renderPDFPage(currentPage);
+        document.getElementById('prev-btn').disabled = false;
+        document.getElementById('next-btn').disabled = currentPage === totalPages;
+      }
+    }
+
+    // ─── File handling ───────────────────────────────────────────
+    function handleFileUpload(file) {
+      if (!file) return;
+      originalFileName = file.name.replace(/\.[^/.]+$/, '');
+
+      document.getElementById('upload-section').classList.add('hidden');
+      document.getElementById('editor-section').classList.remove('hidden');
+
+      document.getElementById('file-name').textContent = file.name;
+
+      if (file.type === 'application/pdf') {
+        document.getElementById('file-icon').textContent = '📑';
+        document.getElementById('file-details').textContent =
+          `${(file.size / 1024 / 1024).toFixed(1)} MB · PDF 文件`;
+        loadPDFFile(file);
+      } else {
+        document.getElementById('file-icon').textContent = '🖼';
+        document.getElementById('file-details').textContent =
+          `${(file.size / 1024).toFixed(0)} KB · 圖片文件`;
+        loadImageFile(file);
+      }
+    }
+
+    function resetToUpload() {
+      document.getElementById('upload-section').classList.remove('hidden');
+      document.getElementById('editor-section').classList.add('hidden');
+      if (docCtx) docCtx.clearRect(0, 0, documentCanvas.width, documentCanvas.height);
+      if (sigCtx) sigCtx.clearRect(0, 0, signatureCanvas.width, signatureCanvas.height);
+      pdfDoc = null;
+      currentDocumentImage = null;
+      isPDF = false;
+      clearHistory();
+      document.getElementById('file-input').value = '';
+    }
+
+    // ─── Drop zone ───────────────────────────────────────────────
+    function setupDragDrop() {
+      const zone = document.getElementById('drop-zone');
+      const input = document.getElementById('file-input');
+
+      zone.addEventListener('click', () => input.click());
+      input.addEventListener('change', e => {
+        if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
+      });
+
+      zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer.files[0];
+        if (file && (file.type.startsWith('image/') || file.type === 'application/pdf')) {
+          handleFileUpload(file);
+        } else {
+          alert('請上傳圖片（JPG / PNG）或 PDF 文件');
+        }
+      });
+    }
+
+    // ─── Toast ───────────────────────────────────────────────────
+    let toastTimer = null;
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-text').textContent = msg;
+      toast.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add('hidden'), 2400);
+    }
+
+    // ─── Keyboard shortcuts ──────────────────────────────────────
+    function setupKeyboard() {
+      document.addEventListener('keydown', e => {
+        const editing = !document.getElementById('editor-section').classList.contains('hidden');
+        if (e.key === 'Escape') { clearSignature(); return; }
+        if (e.key.toLowerCase() === 'r' && editing && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault(); resetDocument();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+          e.preventDefault(); exportAsImage();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && editing) {
+          e.preventDefault(); undoSignature();
+        }
+      });
+    }
+
+    // ─── Boot ────────────────────────────────────────────────────
+    window.addEventListener('load', () => {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      initCanvases();
+      setupDragDrop();
+      setupKeyboard();
+    });
+  </script>
+</body>
+</html>

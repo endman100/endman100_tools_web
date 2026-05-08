@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>貼圖切割工具 — Endman100 Tools</title>
+  <title>LINE 貼圖切割工具 — Endman100 Tools</title>
   <link rel="stylesheet" href="./style.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
@@ -26,7 +26,7 @@
       </a>
       <div class="navbar-links">
         <a href="../../index.html">首頁</a>
-        <a href="./" class="active">貼圖切割</a>
+        <a href="./" class="active">LINE 貼圖切割</a>
       </div>
     </div>
   </nav>
@@ -38,7 +38,7 @@
     <div class="tool-page-header">
       <div class="icon">✂️</div>
       <div>
-        <h1>貼圖切割工具</h1>
+        <h1>LINE 貼圖切割工具</h1>
         <p>上傳貼圖圖片，依 N×M 格線裁切後打包成 ZIP 下載</p>
       </div>
     </div>
@@ -63,15 +63,48 @@
         <div class="settings-row">
           <div class="setting-group">
             <label for="grid-cols">欄（N）</label>
-            <input type="number" id="grid-cols" value="3" min="1" max="20" />
+            <input type="number" id="grid-cols" value="6" min="1" max="20" />
           </div>
           <div class="setting-group">
             <label for="grid-rows">列（M）</label>
-            <input type="number" id="grid-rows" value="3" min="1" max="20" />
+            <input type="number" id="grid-rows" value="6" min="1" max="20" />
           </div>
-          <span class="setting-desc">共切割成 <strong id="total-display">9</strong> 張</span>
+          <span class="setting-desc">共切割成 <strong id="total-display">36</strong> 張</span>
           <button class="btn btn-ghost" id="reset-lines-btn">⟳ 重置為均等</button>
           <button class="btn btn-ghost" id="reset-btn">↺ 重新上傳</button>
+        </div>
+        <div class="settings-row" style="margin-top:1rem">
+          <div class="setting-group">
+            <label for="fmt-select">輸出格式</label>
+            <select id="fmt-select">
+              <option value="image/png">PNG</option>
+              <option value="image/webp">WebP</option>
+              <option value="image/jpeg">JPEG</option>
+            </select>
+          </div>
+          <div class="setting-group" id="quality-group" style="display:none">
+            <label for="quality-input">品質</label>
+            <input type="number" id="quality-input" value="90" min="1" max="100" style="width:75px" />
+            <span class="setting-desc">%</span>
+          </div>
+        </div>
+        <div class="settings-row" style="margin-top:1rem">
+          <label class="checkbox-label">
+            <input type="checkbox" id="normalize-check" />
+            <span>後處理：標準化（去背景邊框、置中填方）</span>
+          </label>
+          <div id="normalize-opts" style="display:none; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+            <div class="setting-group">
+              <label for="binarize-threshold">二值化閾值</label>
+              <input type="number" id="binarize-threshold" value="10" min="1" max="100" style="width:75px" />
+              <span class="setting-desc">（色差）</span>
+            </div>
+            <div class="setting-group">
+              <label for="norm-padding">Padding</label>
+              <input type="number" id="norm-padding" value="10" min="0" max="50" style="width:75px" />
+              <span class="setting-desc">%</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -85,12 +118,13 @@
         </div>
         <div class="preview-canvas-wrap">
           <canvas id="preview-canvas"></canvas>
+          <div id="drag-tooltip" class="drag-tooltip hidden"></div>
         </div>
       </div>
 
       <!-- Thumbnails -->
       <div class="card thumb-section" id="thumb-card">
-        <div class="thumb-header">裁切預覽（<span id="thumb-count">9</span> 張）</div>
+        <div class="thumb-header">裁切預覽（<span id="thumb-count">36</span> 張）</div>
         <div id="thumb-grid"></div>
       </div>
 
@@ -99,7 +133,7 @@
     <!-- Action Bar (sticky bottom) -->
     <div class="action-bar hidden" id="action-bar">
       <div class="action-bar-info" id="action-info">
-        共 <strong id="action-total">9</strong> 張
+        共 <strong id="action-total">36</strong> 張
       </div>
       <div class="action-bar-btns">
         <div id="dl-progress-wrap" class="hidden" style="display:flex;align-items:center;gap:0.75rem;">
@@ -122,16 +156,31 @@
 <script>
 // ─── State ───────────────────────────────────────────────────────────────────
 let originalImage = null;
-let cols = 3, rows = 3;
-// vLines[i] : fraction of image width where the i-th vertical divider sits (0..1)
-// hLines[j] : fraction of image height where the j-th horizontal divider sits (0..1)
+let cols = 6, rows = 6;
+// Crop boundaries (fractions of full image, 0..1)
+let leftBound = 0, rightBound = 1, topBound = 0, bottomBound = 1;
+// Interior dividers (fractions of full image, clamped between bounds)
 let vLines = [], hLines = [];
 
-// Drag state
-const DRAG_HIT  = 8;   // hit area in css pixels
-const MIN_FRAC  = 0.01;
-let dragState = null;  // { type:'v'|'h', idx:number, startFrac:number }
-let hoverHit  = null;  // { type:'v'|'h', idx:number }
+const DRAG_HIT = 8;    // CSS-pixel hit radius
+const MIN_FRAC = 0.005;
+let dragState = null;  // { type:'v'|'h', fullIdx:number }
+let hoverHit  = null;
+
+// ─── Full-array helpers ───────────────────────────────────────────────────────
+const getFullV = () => [leftBound, ...vLines, rightBound];
+const getFullH = () => [topBound,  ...hLines, bottomBound];
+
+function setFullV(idx, val) {
+  if      (idx === 0)                 leftBound  = val;
+  else if (idx === vLines.length + 1) rightBound = val;
+  else vLines[idx - 1] = val;
+}
+function setFullH(idx, val) {
+  if      (idx === 0)                 topBound    = val;
+  else if (idx === hLines.length + 1) bottomBound = val;
+  else hLines[idx - 1] = val;
+}
 
 // ─── DOM refs ────────────────────────────────────────────────────────────────
 const fileInput       = document.getElementById('file-input');
@@ -184,38 +233,33 @@ function loadImageFile(file) {
 
 // ─── Lines init ───────────────────────────────────────────────────────────────
 function initLines() {
-  vLines = [];
-  for (let i = 1; i < cols; i++) vLines.push(i / cols);
-  hLines = [];
-  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+  leftBound = 0; rightBound = 1; topBound = 0; bottomBound = 1;
+  vLines = []; for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  hLines = []; for (let j = 1; j < rows; j++) hLines.push(j / rows);
 }
 
 function resetLinesUniform() {
-  vLines = [];
-  for (let i = 1; i < cols; i++) vLines.push(i / cols);
-  hLines = [];
-  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+  leftBound = 0; rightBound = 1; topBound = 0; bottomBound = 1;
+  vLines = []; for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  hLines = []; for (let j = 1; j < rows; j++) hLines.push(j / rows);
   updateAll();
 }
 
 // ─── Input handlers ───────────────────────────────────────────────────────────
-function clampInt(v, min, max) { return Math.min(max, Math.max(min, isNaN(v) ? min : v)); }
+function clampInt(v, lo, hi) { return Math.min(hi, Math.max(lo, isNaN(v) ? lo : v)); }
 
 colsInput.addEventListener('input', () => {
   cols = clampInt(parseInt(colsInput.value, 10), 1, 20);
   colsInput.value = cols;
   if (!originalImage) return;
-  // Rebuild vLines evenly
-  vLines = [];
-  for (let i = 1; i < cols; i++) vLines.push(i / cols);
+  vLines = []; for (let i = 1; i < cols; i++) vLines.push(leftBound + i / cols * (rightBound - leftBound));
   updateAll();
 });
 rowsInput.addEventListener('input', () => {
   rows = clampInt(parseInt(rowsInput.value, 10), 1, 20);
   rowsInput.value = rows;
   if (!originalImage) return;
-  hLines = [];
-  for (let j = 1; j < rows; j++) hLines.push(j / rows);
+  hLines = []; for (let j = 1; j < rows; j++) hLines.push(topBound + j / rows * (bottomBound - topBound));
   updateAll();
 });
 
@@ -232,6 +276,27 @@ resetBtn.addEventListener('click', () => {
 
 resetLinesBtn.addEventListener('click', resetLinesUniform);
 
+const fmtSelect    = document.getElementById('fmt-select');
+const qualityGroup = document.getElementById('quality-group');
+fmtSelect.addEventListener('change', () => {
+  qualityGroup.style.display = fmtSelect.value !== 'image/png' ? '' : 'none';
+});
+
+const normalizeCheck = document.getElementById('normalize-check');
+const normalizeOpts  = document.getElementById('normalize-opts');
+normalizeCheck.addEventListener('change', () => {
+  normalizeOpts.style.display = normalizeCheck.checked ? 'flex' : 'none';
+  if (originalImage) renderThumbs();
+});
+
+document.getElementById('binarize-threshold').addEventListener('change', () => {
+  if (originalImage && normalizeCheck.checked) renderThumbs();
+});
+
+document.getElementById('norm-padding').addEventListener('change', () => {
+  if (originalImage && normalizeCheck.checked) renderThumbs();
+});
+
 // ─── Update everything ────────────────────────────────────────────────────────
 function updateAll() {
   if (!originalImage) return;
@@ -245,258 +310,381 @@ function updateAll() {
 }
 
 // ─── Canvas helpers ───────────────────────────────────────────────────────────
-const MAX_PREVIEW_W = 720;
+const MAX_PW = 720, MAX_PH = 600;
 
-function getDispSize() {
-  const scale = Math.min(1, MAX_PREVIEW_W / originalImage.width);
-  return { w: Math.round(originalImage.width * scale), h: Math.round(originalImage.height * scale), scale };
-}
-
-// Convert a CSS-pixel mouse event on the canvas to a [fracX, fracY] (0..1) coordinate
 function canvasEventToFrac(e) {
-  const rect   = previewCanvas.getBoundingClientRect();
-  const cssX   = e.clientX - rect.left;
-  const cssY   = e.clientY - rect.top;
-  const scaleX = previewCanvas.width  / rect.width;
-  const scaleY = previewCanvas.height / rect.height;
-  return [ (cssX * scaleX) / previewCanvas.width, (cssY * scaleY) / previewCanvas.height ];
+  const rect  = previewCanvas.getBoundingClientRect();
+  const cssX  = e.clientX - rect.left;
+  const cssY  = e.clientY - rect.top;
+  const sx    = previewCanvas.width  / rect.width;
+  const sy    = previewCanvas.height / rect.height;
+  return [(cssX * sx) / previewCanvas.width, (cssY * sy) / previewCanvas.height];
 }
 
-// Returns hit { type:'v'|'h', idx } or null, given CSS-pixel coords on canvas
 function findHit(e) {
-  const rect   = previewCanvas.getBoundingClientRect();
-  const cssX   = e.clientX - rect.left;
-  const cssY   = e.clientY - rect.top;
-
-  // Check vertical lines first
-  for (let i = 0; i < vLines.length; i++) {
-    const lineX = vLines[i] * rect.width;
-    if (Math.abs(cssX - lineX) <= DRAG_HIT) return { type: 'v', idx: i };
+  const rect  = previewCanvas.getBoundingClientRect();
+  const cssX  = e.clientX - rect.left;
+  const cssY  = e.clientY - rect.top;
+  const fullV = getFullV(), fullH = getFullH();
+  for (let i = 0; i < fullV.length; i++) {
+    if (Math.abs(cssX - fullV[i] * rect.width) <= DRAG_HIT) return { type: 'v', fullIdx: i };
   }
-  for (let j = 0; j < hLines.length; j++) {
-    const lineY = hLines[j] * rect.height;
-    if (Math.abs(cssY - lineY) <= DRAG_HIT) return { type: 'h', idx: j };
+  for (let j = 0; j < fullH.length; j++) {
+    if (Math.abs(cssY - fullH[j] * rect.height) <= DRAG_HIT) return { type: 'h', fullIdx: j };
   }
   return null;
 }
 
+function applyDragFrac(type, fullIdx, frac) {
+  const arr   = type === 'v' ? getFullV() : getFullH();
+  const setFn = type === 'v' ? setFullV   : setFullH;
+  const lo = fullIdx === 0              ? 0 : arr[fullIdx - 1] + MIN_FRAC;
+  const hi = fullIdx === arr.length - 1 ? 1 : arr[fullIdx + 1] - MIN_FRAC;
+  setFn(fullIdx, Math.min(hi, Math.max(lo, frac)));
+}
+
 // ─── Draw preview canvas ──────────────────────────────────────────────────────
 function drawPreview() {
-  const { w: dispW, h: dispH } = getDispSize();
-  previewCanvas.width  = dispW;
-  previewCanvas.height = dispH;
+  const dpr   = window.devicePixelRatio || 1;
+  const scale = Math.min(1, MAX_PW / originalImage.width, MAX_PH / originalImage.height);
+  const dispW = Math.round(originalImage.width  * scale);
+  const dispH = Math.round(originalImage.height * scale);
+
+  // Set canvas CSS size
+  previewCanvas.style.width  = dispW + 'px';
+  previewCanvas.style.height = dispH + 'px';
+  // Set canvas backing buffer size (DPR-aware)
+  previewCanvas.width  = Math.round(dispW * dpr);
+  previewCanvas.height = Math.round(dispH * dpr);
 
   const ctx = previewCanvas.getContext('2d');
+  ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, dispW, dispH);
   ctx.drawImage(originalImage, 0, 0, dispW, dispH);
 
-  // ── Cell boundaries in pixels ──
-  const allVx = [0, ...vLines.map(f => f * dispW), dispW];  // length = cols+1
-  const allHy = [0, ...hLines.map(f => f * dispH), dispH];  // length = rows+1
+  // ── Dim outside crop area ──
+  const cx1 = leftBound * dispW, cy1 = topBound * dispH;
+  const cx2 = rightBound * dispW, cy2 = bottomBound * dispH;
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0,   0,    dispW,       cy1);
+  ctx.fillRect(0,   cy2,  dispW,       dispH - cy2);
+  ctx.fillRect(0,   cy1,  cx1,         cy2 - cy1);
+  ctx.fillRect(cx2, cy1,  dispW - cx2, cy2 - cy1);
 
-  // ── Draw grid lines ──
+  // ── Draw all grid lines (borders + interior) ──
   ctx.save();
-  ctx.lineWidth   = 2;
-  ctx.shadowBlur  = 4;
+  ctx.lineWidth = 2; ctx.shadowBlur = 4;
+  const fullV = getFullV(), fullH = getFullH();
 
-  for (let i = 1; i < allVx.length - 1; i++) {
-    const isHover = hoverHit && hoverHit.type === 'v' && hoverHit.idx === i - 1;
-    ctx.strokeStyle = isHover ? 'rgba(255, 210, 80, 0.95)' : 'rgba(108, 99, 255, 0.85)';
-    ctx.shadowColor = isHover ? 'rgba(255, 210, 80, 0.5)'  : 'rgba(108, 99, 255, 0.5)';
-    ctx.beginPath();
-    ctx.moveTo(allVx[i], 0);
-    ctx.lineTo(allVx[i], dispH);
-    ctx.stroke();
+  const applyLineStyle = (type, idx, arr) => {
+    const isBorder = idx === 0 || idx === arr.length - 1;
+    const isHov    = hoverHit && hoverHit.type === type && hoverHit.fullIdx === idx;
+    if (isHov) {
+      ctx.strokeStyle = 'rgba(255,210,80,0.95)'; ctx.shadowColor = 'rgba(255,210,80,0.5)';
+      ctx.setLineDash([]);
+    } else if (isBorder) {
+      ctx.strokeStyle = 'rgba(108,99,255,0.9)';  ctx.shadowColor = 'rgba(108,99,255,0.4)';
+      ctx.setLineDash([6, 4]);
+    } else {
+      ctx.strokeStyle = 'rgba(108,99,255,0.85)'; ctx.shadowColor = 'rgba(108,99,255,0.5)';
+      ctx.setLineDash([]);
+    }
+  };
+
+  for (let i = 0; i < fullV.length; i++) {
+    applyLineStyle('v', i, fullV);
+    const x = fullV[i] * dispW;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, dispH); ctx.stroke();
   }
-  for (let j = 1; j < allHy.length - 1; j++) {
-    const isHover = hoverHit && hoverHit.type === 'h' && hoverHit.idx === j - 1;
-    ctx.strokeStyle = isHover ? 'rgba(255, 210, 80, 0.95)' : 'rgba(108, 99, 255, 0.85)';
-    ctx.shadowColor = isHover ? 'rgba(255, 210, 80, 0.5)'  : 'rgba(108, 99, 255, 0.5)';
-    ctx.beginPath();
-    ctx.moveTo(0, allHy[j]);
-    ctx.lineTo(dispW, allHy[j]);
-    ctx.stroke();
+  for (let j = 0; j < fullH.length; j++) {
+    applyLineStyle('h', j, fullH);
+    const y = fullH[j] * dispH;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(dispW, y); ctx.stroke();
   }
-  ctx.restore();
+  ctx.setLineDash([]); ctx.restore();
 
   // ── Cell index labels ──
+  const allVx = fullV.map(f => f * dispW);
+  const allHy = fullH.map(f => f * dispH);
   ctx.save();
-  ctx.textAlign    = 'center';
-  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const cx  = (allVx[col] + allVx[col + 1]) / 2;
       const cy  = (allHy[row] + allHy[row + 1]) / 2;
       const cw  = allVx[col + 1] - allVx[col];
       const ch  = allHy[row + 1] - allHy[row];
-      const fs  = Math.max(10, Math.round(Math.min(cw, ch) * 0.22));
+      const fs  = Math.max(9, Math.round(Math.min(cw, ch) * 0.22));
       const idx = row * cols + col + 1;
       ctx.font = `bold ${fs}px sans-serif`;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillText(idx, cx + 1, cy + 1);
-      ctx.fillStyle = 'rgba(255,255,255,0.92)';
-      ctx.fillText(idx, cx, cy);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(idx, cx + 1, cy + 1);
+      ctx.fillStyle = 'rgba(255,255,255,0.92)'; ctx.fillText(idx, cx, cy);
     }
   }
   ctx.restore();
 }
 
-// ─── Drag interaction on preview canvas ───────────────────────────────────────
-previewCanvas.addEventListener('mousemove', e => {
+// ─── Canvas drag/hover interaction ───────────────────────────────────────────
+const tooltip     = document.getElementById('drag-tooltip');
+const previewWrap = document.querySelector('.preview-canvas-wrap');
+
+function updateTooltip(e) {
+  if (!dragState || !originalImage) { tooltip.classList.add('hidden'); return; }
+
+  const cRect = previewCanvas.getBoundingClientRect();
+  const wRect = previewWrap.getBoundingClientRect();
+  const srcW  = originalImage.width, srcH = originalImage.height;
+  const fullV = getFullV(), fullH = getFullH();
+
+  let text, tipLeft, tipTop;
+
+  if (dragState.type === 'v') {
+    const i = dragState.fullIdx;
+    const lw = i > 0                ? Math.round((fullV[i] - fullV[i-1]) * srcW) : null;
+    const rw = i < fullV.length - 1 ? Math.round((fullV[i+1] - fullV[i]) * srcW) : null;
+    text    = lw !== null && rw !== null ? `← ${lw} px · ${rw} px →`
+            : lw !== null               ? `← ${lw} px`
+            :                             `${rw} px →`;
+    tipLeft = (fullV[i] * cRect.width + cRect.left - wRect.left);
+    tipTop  = Math.max(8, e.clientY - wRect.top - 36);
+  } else {
+    const j = dragState.fullIdx;
+    const th = j > 0                ? Math.round((fullH[j] - fullH[j-1]) * srcH) : null;
+    const bh = j < fullH.length - 1 ? Math.round((fullH[j+1] - fullH[j]) * srcH) : null;
+    text    = th !== null && bh !== null ? `↑ ${th} px / ${bh} px ↓`
+            : th !== null               ? `↑ ${th} px`
+            :                             `${bh} px ↓`;
+    tipLeft = Math.max(8, e.clientX - wRect.left + 12);
+    tipTop  = (fullH[j] * cRect.height + cRect.top - wRect.top - 14);
+  }
+
+  tooltip.textContent = text;
+  tooltip.style.left  = tipLeft + 'px';
+  tooltip.style.top   = tipTop  + 'px';
+  tooltip.classList.remove('hidden');
+}
+
+function onMM(e) {
   if (dragState) {
     const [fx, fy] = canvasEventToFrac(e);
-    if (dragState.type === 'v') {
-      const prev = dragState.idx > 0            ? vLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
-      const next = dragState.idx < vLines.length - 1 ? vLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
-      vLines[dragState.idx] = Math.min(next, Math.max(prev, fx));
-    } else {
-      const prev = dragState.idx > 0            ? hLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
-      const next = dragState.idx < hLines.length - 1 ? hLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
-      hLines[dragState.idx] = Math.min(next, Math.max(prev, fy));
-    }
+    applyDragFrac(dragState.type, dragState.fullIdx, dragState.type === 'v' ? fx : fy);
     drawPreview();
+    updateTooltip(e);
     return;
   }
-
   hoverHit = findHit(e);
-  if (hoverHit) {
-    previewCanvas.classList.toggle('drag-col', hoverHit.type === 'v');
-    previewCanvas.classList.toggle('drag-row', hoverHit.type === 'h');
-  } else {
-    previewCanvas.classList.remove('drag-col', 'drag-row');
-  }
+  previewCanvas.classList.toggle('drag-col', !!(hoverHit && hoverHit.type === 'v'));
+  previewCanvas.classList.toggle('drag-row', !!(hoverHit && hoverHit.type === 'h'));
   drawPreview();
-});
-
-previewCanvas.addEventListener('mousedown', e => {
-  const hit = findHit(e);
-  if (!hit) return;
-  dragState = { type: hit.type, idx: hit.idx };
-  hoverHit  = hit;
-  e.preventDefault();
-});
-
-previewCanvas.addEventListener('mouseup', () => {
+}
+function onMD(e) {
+  const hit = findHit(e); if (!hit) return;
+  dragState = hit; hoverHit = hit; e.preventDefault();
+  updateTooltip(e);
+}
+function onMU() {
   if (!dragState) return;
   dragState = null;
-  renderThumbs();  // update thumbs only on release (perf)
-});
-
-previewCanvas.addEventListener('mouseleave', () => {
+  tooltip.classList.add('hidden');
+  renderThumbs();
+}
+function onML() {
   if (dragState) { dragState = null; renderThumbs(); }
   hoverHit = null;
+  tooltip.classList.add('hidden');
   previewCanvas.classList.remove('drag-col', 'drag-row');
   drawPreview();
-});
+}
+previewCanvas.addEventListener('mousemove',  onMM);
+previewCanvas.addEventListener('mousedown',  onMD);
+previewCanvas.addEventListener('mouseup',    onMU);
+previewCanvas.addEventListener('mouseleave', onML);
 
-// Touch support
+// Touch
 previewCanvas.addEventListener('touchstart', e => {
-  const hit = findHitFromTouch(e);
-  if (!hit) return;
-  dragState = { type: hit.type, idx: hit.idx };
-  hoverHit  = hit;
-  e.preventDefault();
+  const t = e.touches[0], hit = findHit({ clientX: t.clientX, clientY: t.clientY });
+  if (!hit) return; dragState = hit; hoverHit = hit; e.preventDefault();
+  updateTooltip({ clientX: t.clientX, clientY: t.clientY });
 }, { passive: false });
-
 previewCanvas.addEventListener('touchmove', e => {
-  if (!dragState) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  const fakeEvt = { clientX: touch.clientX, clientY: touch.clientY };
-  const [fx, fy] = canvasEventToFrac(fakeEvt);
-  if (dragState.type === 'v') {
-    const prev = dragState.idx > 0                ? vLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
-    const next = dragState.idx < vLines.length - 1 ? vLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
-    vLines[dragState.idx] = Math.min(next, Math.max(prev, fx));
-  } else {
-    const prev = dragState.idx > 0                ? hLines[dragState.idx - 1] + MIN_FRAC : MIN_FRAC;
-    const next = dragState.idx < hLines.length - 1 ? hLines[dragState.idx + 1] - MIN_FRAC : 1 - MIN_FRAC;
-    hLines[dragState.idx] = Math.min(next, Math.max(prev, fy));
-  }
+  if (!dragState) return; e.preventDefault();
+  const t = e.touches[0];
+  const [fx, fy] = canvasEventToFrac({ clientX: t.clientX, clientY: t.clientY });
+  applyDragFrac(dragState.type, dragState.fullIdx, dragState.type === 'v' ? fx : fy);
   drawPreview();
+  updateTooltip({ clientX: t.clientX, clientY: t.clientY });
 }, { passive: false });
-
 previewCanvas.addEventListener('touchend', () => {
   if (!dragState) return;
-  dragState = null;
-  hoverHit  = null;
+  dragState = null; hoverHit = null;
+  tooltip.classList.add('hidden');
   renderThumbs();
 });
-
-function findHitFromTouch(e) {
-  const touch = e.touches[0];
-  return findHit({ clientX: touch.clientX, clientY: touch.clientY });
-}
 
 // ─── Render thumbnail grid ────────────────────────────────────────────────────
 function renderThumbs() {
   thumbGrid.innerHTML = '';
-  const gridCols = Math.min(cols, 10);
-  thumbGrid.style.gridTemplateColumns = `repeat(${gridCols}, 1fr)`;
+  thumbGrid.style.gridTemplateColumns = `repeat(${Math.min(cols, 10)}, 1fr)`;
 
-  const srcW = originalImage.width;
-  const srcH = originalImage.height;
-  const allVx = [0, ...vLines.map(f => f * srcW), srcW];
-  const allHy = [0, ...hLines.map(f => f * srcH), srcH];
-  const THUMB = 120;
+  const srcW  = originalImage.width, srcH = originalImage.height;
+  const allVx = getFullV().map(f => f * srcW);
+  const allHy = getFullH().map(f => f * srcH);
+  const TMAX  = 120;
+  const doNorm = document.getElementById('normalize-check').checked;
+  const normTh = parseInt(document.getElementById('binarize-threshold').value, 10) || 10;
+  const normPad = parseFloat(document.getElementById('norm-padding').value) || 10;
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
       const sx = allVx[col], sw = allVx[col + 1] - allVx[col];
       const sy = allHy[row], sh = allHy[row + 1] - allHy[row];
 
+      // Crop at original resolution
+      const rawC = document.createElement('canvas');
+      rawC.width = Math.round(sw); rawC.height = Math.round(sh);
+      rawC.getContext('2d').drawImage(originalImage, sx, sy, sw, sh, 0, 0, rawC.width, rawC.height);
+
+      // Normalize if enabled
+      const cellCanvas = doNorm ? normalizeCell(rawC, normTh, normPad) : rawC;
+      const cw = cellCanvas.width, ch = cellCanvas.height;
+      const aspect = cw / ch;
+      const tw = aspect >= 1 ? TMAX : Math.max(1, Math.round(TMAX * aspect));
+      const th = aspect <  1 ? TMAX : Math.max(1, Math.round(TMAX / aspect));
+
       const item = document.createElement('div');
       item.className = 'thumb-item';
 
       const c = document.createElement('canvas');
-      c.width  = THUMB;
-      c.height = THUMB;
-      c.getContext('2d').drawImage(originalImage, sx, sy, sw, sh, 0, 0, THUMB, THUMB);
+      c.width = tw; c.height = th;
+      c.getContext('2d').drawImage(cellCanvas, 0, 0, cw, ch, 0, 0, tw, th);
 
       const lbl = document.createElement('span');
-      lbl.className   = 'thumb-label';
-      lbl.textContent = `${row + 1},${col + 1}`;
+      lbl.className = 'thumb-label'; lbl.textContent = `${row + 1},${col + 1}`;
 
-      item.appendChild(c);
-      item.appendChild(lbl);
+      item.appendChild(c); item.appendChild(lbl);
       thumbGrid.appendChild(item);
     }
   }
 }
 
+// ─── Normalize: edge-mode RGB + binarize + contour center + pad to square ──────
+/**
+ * Returns the mode (most frequent) RGB of the outermost border pixels of a canvas.
+ * Quantizes to 8-bit per channel.
+ */
+function getEdgeModeRGB(ctx, w, h) {
+  const borderData = ctx.getImageData(0, 0, w, h).data;
+  const freq = {};
+  const addPx = (i) => {
+    const r = borderData[i], g = borderData[i+1], b = borderData[i+2], a = borderData[i+3];
+    if (a < 128) return; // skip transparent
+    const key = `${r},${g},${b}`;
+    freq[key] = (freq[key] || 0) + 1;
+  };
+  for (let x = 0; x < w; x++) { addPx((x)*4); addPx(((h-1)*w + x)*4); }
+  for (let y = 1; y < h-1; y++) { addPx((y*w)*4); addPx((y*w + w-1)*4); }
+  let best = null, bestCount = 0;
+  for (const [key, count] of Object.entries(freq)) {
+    if (count > bestCount) { bestCount = count; best = key; }
+  }
+  if (!best) return [255, 255, 255];
+  return best.split(',').map(Number);
+}
+
+/**
+ * Normalize a cell canvas:
+ * 1. Compute edge mode RGB (background color)
+ * 2. Find bounding box of ALL foreground pixels (color dist > threshold)
+ * 3. Pad to square, centered, filled with bg color
+ * Returns a new canvas.
+ */
+function normalizeCell(srcCanvas, threshold, paddingPct) {
+  const w = srcCanvas.width, h = srcCanvas.height;
+  const ctx = srcCanvas.getContext('2d');
+  const [bgR, bgG, bgB] = getEdgeModeRGB(ctx, w, h);
+  const imgData = ctx.getImageData(0, 0, w, h);
+  const data = imgData.data;
+
+  // Find bounding box of ALL foreground pixels
+  let minX = w, maxX = -1, minY = h, maxY = -1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      const a = data[i + 3];
+      if (a < 10) continue; // transparent → skip
+      const r = data[i], g = data[i+1], b = data[i+2];
+      const dist = Math.sqrt((r-bgR)**2 + (g-bgG)**2 + (b-bgB)**2);
+      if (dist > threshold) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  // Nothing found → return original
+  if (maxX < 0) return srcCanvas;
+
+  const contentW = maxX - minX + 1;
+  const contentH = maxY - minY + 1;
+
+  // Pad to square, then add padding% border on each side
+  const innerSide = Math.max(contentW, contentH);
+  const pad = (paddingPct || 0) / 100;
+  const side = Math.round(innerSide * (1 + pad * 2)); // pad% each side
+
+  // Create output canvas (square)
+  const out = document.createElement('canvas');
+  out.width = out.height = side;
+  const octx = out.getContext('2d');
+  // Fill bg
+  octx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
+  octx.fillRect(0, 0, side, side);
+  // Draw content centered (with 10% padding on each side)
+  const offX = Math.round((side - contentW) / 2);
+  const offY = Math.round((side - contentH) / 2);
+  octx.drawImage(srcCanvas, minX, minY, contentW, contentH, offX, offY, contentW, contentH);
+
+  return out;
+}
+
 // ─── Download ZIP ─────────────────────────────────────────────────────────────
 downloadBtn.addEventListener('click', async () => {
   if (!originalImage) return;
-
   downloadBtn.disabled = true;
-  dlProgressWrap.classList.remove('hidden');
-  dlProgressWrap.style.display = 'flex';
+  dlProgressWrap.classList.remove('hidden'); dlProgressWrap.style.display = 'flex';
 
-  const srcW   = originalImage.width;
-  const srcH   = originalImage.height;
-  const allVx  = [0, ...vLines.map(f => f * srcW), srcW];
-  const allHy  = [0, ...hLines.map(f => f * srcH), srcH];
-  const total  = cols * rows;
-  const zip    = new JSZip();
-  const offC   = document.createElement('canvas');
-  const offCtx = offC.getContext('2d');
+  const fmtSelect = document.getElementById('fmt-select');
+  const qualityInput = document.getElementById('quality-input');
+  const mimeType = fmtSelect.value;
+  const extMap = { 'image/png': 'png', 'image/webp': 'webp', 'image/jpeg': 'jpg' };
+  const ext = extMap[mimeType] || 'png';
+  const quality = (mimeType !== 'image/png') ? (parseInt(qualityInput.value, 10) || 90) / 100 : undefined;
 
+  const srcW  = originalImage.width, srcH = originalImage.height;
+  const allVx = getFullV().map(f => f * srcW);
+  const allHy = getFullH().map(f => f * srcH);
+  const total = cols * rows, zip = new JSZip();
+  const offC = document.createElement('canvas'), offCtx = offC.getContext('2d');
   let done = 0;
+
+  const doNormalize = document.getElementById('normalize-check').checked;
+  const normThreshold = parseInt(document.getElementById('binarize-threshold').value, 10) || 10;
+  const normPadding = parseFloat(document.getElementById('norm-padding').value) || 10;
+
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const sx = allVx[col],   sw = allVx[col + 1] - allVx[col];
-      const sy = allHy[row],   sh = allHy[row + 1] - allHy[row];
-      offC.width  = Math.round(sw);
-      offC.height = Math.round(sh);
+      const sx = allVx[col], sw = allVx[col + 1] - allVx[col];
+      const sy = allHy[row], sh = allHy[row + 1] - allHy[row];
+      offC.width = Math.round(sw); offC.height = Math.round(sh);
       offCtx.clearRect(0, 0, offC.width, offC.height);
       offCtx.drawImage(originalImage, sx, sy, sw, sh, 0, 0, offC.width, offC.height);
 
-      const blob = await new Promise(r => offC.toBlob(r, 'image/png'));
+      const cellCanvas = doNormalize ? normalizeCell(offC, normThreshold, normPadding) : offC;
+      const blob = await new Promise(r => cellCanvas.toBlob(r, mimeType, quality));
       zip.file(
-        `sticker_r${String(row + 1).padStart(2, '0')}_c${String(col + 1).padStart(2, '0')}.png`,
+        `sticker_r${String(row+1).padStart(2,'0')}_c${String(col+1).padStart(2,'0')}.${ext}`,
         await blob.arrayBuffer()
       );
-
       done++;
       dlProgressBar.style.width  = Math.round(done / total * 100) + '%';
       dlProgressText.textContent = `打包中… ${done}/${total}`;
@@ -506,14 +694,12 @@ downloadBtn.addEventListener('click', async () => {
 
   dlProgressText.textContent = '壓縮中…';
   const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'STORE' });
-  const url = URL.createObjectURL(zipBlob);
-  Object.assign(document.createElement('a'), { href: url, download: `stickers_${cols}x${rows}.zip` }).click();
-  URL.revokeObjectURL(url);
+  Object.assign(document.createElement('a'), {
+    href: URL.createObjectURL(zipBlob), download: `stickers_${cols}x${rows}.zip`
+  }).click();
 
-  dlProgressWrap.classList.add('hidden');
-  dlProgressWrap.style.display = '';
-  dlProgressBar.style.width    = '0%';
-  downloadBtn.disabled         = false;
+  dlProgressWrap.classList.add('hidden'); dlProgressWrap.style.display = '';
+  dlProgressBar.style.width = '0%'; downloadBtn.disabled = false;
 });
 </script>
 

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X (Twitter) 影片下載工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">X 影片下載</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">𝕏</div>
+      <div>
+        <h1>X (Twitter) 影片下載工具</h1>
+        <p>輸入 X / Twitter 推文網址，取得第三方下載服務選項。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 輸入推文網址</div>
+      <div class="input-row">
+        <input type="text" id="url-input" class="url-input"
+          placeholder="https://x.com/user/status/123456789 或 twitter.com/…"
+          autocomplete="off" spellcheck="false" />
+        <button class="btn btn-primary" id="btn-fetch">取得下載連結</button>
+      </div>
+      <div id="error-msg" class="error-msg hidden"></div>
+      <div class="note-msg">支援：x.com/user/status/ID 或 twitter.com/user/status/ID</div>
+    </div>
+
+    <div class="card hidden" id="result-card">
+      <div class="card-title">② 下載選項</div>
+
+      <div style="margin-bottom:1.25rem">
+        <div class="badge" id="tweet-badge">—</div>
+        <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-top:.75rem">
+          <div style="flex:1;min-width:10rem">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem">X 連結</div>
+            <div style="font-size:.83rem;word-break:break-all" id="x-url">—</div>
+          </div>
+          <div style="flex:1;min-width:10rem">
+            <div style="font-size:.75rem;color:var(--text-muted);margin-bottom:.25rem">Twitter 連結</div>
+            <div style="font-size:.83rem;word-break:break-all" id="tw-url">—</div>
+          </div>
+        </div>
+        <div class="info-btns" style="margin-top:.75rem">
+          <button class="btn btn-ghost" id="btn-copy-x">📋 複製 X 連結</button>
+          <button class="btn btn-ghost" id="btn-copy-tw">📋 複製 Twitter 連結</button>
+          <button class="btn btn-primary" id="btn-copy-url">複製（貼入下方服務）</button>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-bottom:.75rem">推薦下載服務（點擊前往）</div>
+      <div class="dl-service-list" id="dl-links"></div>
+    </div>
+  </main>
+
+  <script>
+    const urlInput   = document.getElementById('url-input');
+    const btnFetch   = document.getElementById('btn-fetch');
+    const errorMsg   = document.getElementById('error-msg');
+    const resultCard = document.getElementById('result-card');
+    const tweetBadge = document.getElementById('tweet-badge');
+    const xUrl       = document.getElementById('x-url');
+    const twUrl      = document.getElementById('tw-url');
+    const btnCopyX   = document.getElementById('btn-copy-x');
+    const btnCopyTw  = document.getElementById('btn-copy-tw');
+    const btnCopy    = document.getElementById('btn-copy-url');
+    const dlLinks    = document.getElementById('dl-links');
+    const toast      = document.getElementById('copy-toast');
+    let toastTimer;
+
+    function showToast(msg) {
+      toast.textContent = msg; toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    const SERVICES = [
+      { name: 'SaveTweetVid',       url: c => `https://savetweetvid.com/en/search?q=${encodeURIComponent(c)}` },
+      { name: 'TwitSave',           url: c => `https://twitsave.com/info?url=${encodeURIComponent(c)}` },
+      { name: 'XVideoDownload',     url: c => `https://xvideodownload.app/?url=${encodeURIComponent(c)}` },
+      { name: 'SaveFrom.net',       url: c => `https://savefrom.net/#url=${encodeURIComponent(c)}` },
+      { name: 'yt-dlp（命令列）',   url: c => `https://github.com/yt-dlp/yt-dlp`, cmd: c => `yt-dlp "${c}"` },
+    ];
+
+    function parseTweet(raw) {
+      const m = raw.match(/(twitter\.com|x\.com)\/([^/]+)\/status\/(\d+)/);
+      if (!m) return null;
+      const id = m[3], user = m[2];
+      return {
+        id,
+        x: `https://x.com/${user}/status/${id}`,
+        tw: `https://twitter.com/${user}/status/${id}`,
+      };
+    }
+
+    function buildLinks(canonical) {
+      dlLinks.innerHTML = '';
+      SERVICES.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'dl-service-row';
+        const a = document.createElement('a');
+        a.className = 'btn btn-ghost';
+        a.href = s.url(canonical); a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = `🔗 ${s.name} ↗`;
+        row.appendChild(a);
+        if (s.cmd) {
+          const code = document.createElement('code');
+          const cmd = s.cmd(canonical);
+          code.textContent = cmd;
+          code.title = '點擊複製指令';
+          code.addEventListener('click', () => navigator.clipboard.writeText(cmd).then(() => showToast('已複製指令！')));
+          row.appendChild(code);
+        }
+        dlLinks.appendChild(row);
+      });
+    }
+
+    function doFetch() {
+      const raw = urlInput.value.trim();
+      if (!raw) return;
+      const parsed = parseTweet(raw);
+      if (!parsed) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = '⚠️ 無法辨識推文網址，請確認格式為 x.com/用戶名/status/推文ID。';
+        resultCard.classList.add('hidden'); return;
+      }
+      errorMsg.classList.add('hidden');
+      tweetBadge.textContent = `推文 ID：${parsed.id}`;
+      xUrl.textContent = parsed.x;
+      twUrl.textContent = parsed.tw;
+      btnCopyX.onclick = () => navigator.clipboard.writeText(parsed.x).then(() => showToast('已複製！'));
+      btnCopyTw.onclick = () => navigator.clipboard.writeText(parsed.tw).then(() => showToast('已複製！'));
+      btnCopy.onclick = () => navigator.clipboard.writeText(parsed.x).then(() => showToast('已複製！'));
+      buildLinks(parsed.x);
+      resultCard.classList.remove('hidden');
+    }
+
+    btnFetch.addEventListener('click', doFetch);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+    urlInput.addEventListener('paste', () => setTimeout(doFetch, 50));
+  </script>
+</body>
+</html>

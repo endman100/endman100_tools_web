@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube 縮圖擷取工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Copy toast -->
+  <div class="copy-toast" id="copy-toast">已複製到剪貼簿！</div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">YouTube 縮圖</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🖼️</div>
+      <div>
+        <h1>YouTube 縮圖擷取工具</h1>
+        <p>輸入 YouTube 影片網址或影片 ID，即可顯示各種解析度的縮圖，一鍵複製網址或直接下載。</p>
+      </div>
+    </div>
+
+    <!-- Input Card -->
+    <div class="card">
+      <div class="card-title">① 輸入影片網址或 ID</div>
+      <div class="input-row">
+        <input
+          type="text"
+          id="url-input"
+          class="url-input"
+          placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ 或 dQw4w9WgXcQ"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button class="btn btn-primary" id="btn-fetch">擷取縮圖</button>
+      </div>
+      <div id="error-msg" class="error-msg hidden">⚠️ 無法辨識影片 ID，請確認網址格式正確。</div>
+      <div class="note-msg">支援格式：youtube.com/watch?v=…、youtu.be/…、youtube.com/shorts/…，或直接貼上 11 碼影片 ID</div>
+    </div>
+
+    <!-- Result Card -->
+    <div class="card hidden" id="result-card">
+      <div class="card-title">② 縮圖預覽</div>
+
+      <div class="video-id-row">
+        <span>影片 ID：</span>
+        <span class="video-id-badge" id="video-id-badge">—</span>
+        <a id="yt-link" href="#" target="_blank" rel="noopener" class="btn btn-ghost" style="padding:0.35rem 0.85rem;font-size:0.82rem;">
+          在 YouTube 開啟 ↗
+        </a>
+      </div>
+
+      <div class="thumb-grid" id="thumb-grid"></div>
+    </div>
+  </main>
+
+  <script>
+    // ---- DOM refs ----
+    const urlInput    = document.getElementById('url-input');
+    const btnFetch    = document.getElementById('btn-fetch');
+    const errorMsg    = document.getElementById('error-msg');
+    const resultCard  = document.getElementById('result-card');
+    const videoBadge  = document.getElementById('video-id-badge');
+    const ytLink      = document.getElementById('yt-link');
+    const thumbGrid   = document.getElementById('thumb-grid');
+    const copyToast   = document.getElementById('copy-toast');
+
+    // Quality definitions
+    const QUALITIES = [
+      { key: 'maxresdefault', label: 'Max Resolution', size: '1280×720+' },
+      { key: 'sddefault',     label: 'SD Default',     size: '640×480' },
+      { key: 'hqdefault',     label: 'HQ Default',     size: '480×360' },
+      { key: 'mqdefault',     label: 'MQ Default',     size: '320×180' },
+      { key: 'default',       label: 'Default',        size: '120×90' },
+    ];
+
+    // ---- Extract video ID ----
+    function extractVideoId(raw) {
+      const s = raw.trim();
+      // Plain 11-char ID (only letters, digits, - _)
+      if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+
+      const patterns = [
+        /[?&]v=([A-Za-z0-9_-]{11})/,
+        /youtu\.be\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/embed\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/shorts\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/live\/([A-Za-z0-9_-]{11})/,
+        /youtube\.com\/v\/([A-Za-z0-9_-]{11})/,
+      ];
+
+      for (const p of patterns) {
+        const m = s.match(p);
+        if (m) return m[1];
+      }
+      return null;
+    }
+
+    // ---- Toast ----
+    let toastTimer = null;
+    function showToast(msg) {
+      copyToast.textContent = msg;
+      copyToast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => copyToast.classList.remove('show'), 2200);
+    }
+
+    // ---- Copy to clipboard ----
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('已複製到剪貼簿！');
+      } catch {
+        showToast('複製失敗，請手動選取');
+      }
+    }
+
+    // ---- Render results ----
+    function render(videoId) {
+      videoBadge.textContent = videoId;
+      ytLink.href = `https://www.youtube.com/watch?v=${videoId}`;
+      thumbGrid.innerHTML = '';
+
+      QUALITIES.forEach(q => {
+        const url = `https://img.youtube.com/vi/${videoId}/${q.key}.jpg`;
+
+        const card = document.createElement('div');
+        card.className = 'thumb-card';
+
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = q.label;
+        img.loading = 'lazy';
+        // If image fails to load (maxresdefault not always available), show placeholder text
+        img.onerror = () => {
+          img.style.display = 'none';
+          const ph = document.createElement('div');
+          ph.style.cssText = 'min-height:80px;display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:var(--text-muted);padding:1rem;';
+          ph.textContent = '此解析度不可用';
+          card.insertBefore(ph, info);
+        };
+
+        const info = document.createElement('div');
+        info.className = 'thumb-info';
+
+        const qLabel = document.createElement('span');
+        qLabel.className = 'thumb-quality';
+        qLabel.textContent = q.label;
+
+        const sizeLabel = document.createElement('span');
+        sizeLabel.className = 'thumb-size';
+        sizeLabel.textContent = q.size;
+
+        const btns = document.createElement('div');
+        btns.className = 'thumb-btns';
+
+        const btnCopy = document.createElement('button');
+        btnCopy.className = 'btn btn-ghost';
+        btnCopy.textContent = '複製網址';
+        btnCopy.addEventListener('click', () => copyText(url));
+
+        const btnDl = document.createElement('a');
+        btnDl.className = 'btn btn-success';
+        btnDl.textContent = '下載';
+        btnDl.href = url;
+        btnDl.download = `${videoId}_${q.key}.jpg`;
+        btnDl.target = '_blank';
+        btnDl.rel = 'noopener';
+
+        btns.appendChild(btnCopy);
+        btns.appendChild(btnDl);
+        info.appendChild(qLabel);
+        info.appendChild(sizeLabel);
+        info.appendChild(btns);
+        card.appendChild(img);
+        card.appendChild(info);
+        thumbGrid.appendChild(card);
+      });
+
+      resultCard.classList.remove('hidden');
+    }
+
+    // ---- Fetch handler ----
+    function doFetch() {
+      const raw = urlInput.value;
+      if (!raw.trim()) return;
+      const id = extractVideoId(raw);
+      if (!id) {
+        errorMsg.classList.remove('hidden');
+        resultCard.classList.add('hidden');
+        return;
+      }
+      errorMsg.classList.add('hidden');
+      render(id);
+    }
+
+    btnFetch.addEventListener('click', doFetch);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+
+    // Auto-run if user pastes a full URL
+    urlInput.addEventListener('paste', () => {
+      setTimeout(doFetch, 50);
+    });
+  </script>
+</body>
+</html>

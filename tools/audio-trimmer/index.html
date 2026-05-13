@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>音訊剪裁器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .waveform-wrap{position:relative;width:100%;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:1rem}
+    #waveform-canvas{display:block;width:100%;height:120px;cursor:crosshair}
+    .range-bar{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem}
+    .range-bar label{font-size:.82rem;color:var(--text-muted);min-width:2.5rem}
+    .range-bar input[type=range]{flex:1;accent-color:var(--accent);min-width:120px}
+    .range-bar .time-lbl{font-size:.88rem;font-weight:600;color:var(--text-primary);min-width:3.5rem;text-align:right}
+    .format-row{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem}
+    .format-row label{font-size:.9rem;color:var(--text-secondary)}
+    select.sel{background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .9rem;font-family:var(--font);font-size:.9rem;outline:none;cursor:pointer}
+    select.sel:focus{border-color:var(--accent)}
+    .info-msg{font-size:.82rem;color:var(--text-muted);margin-top:.5rem}
+    audio#player{width:100%;margin-bottom:.75rem;border-radius:var(--radius-sm);background:var(--bg-secondary)}
+    .dl-row{display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-top:1.25rem}
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">音訊剪裁器</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">✂️🎵</div>
+      <div>
+        <h1>音訊剪裁器</h1>
+        <p>上傳音訊檔，拖曳起始 / 結束點，匯出剪裁後的音訊。完全離線，不上傳任何資料。</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="card">
+      <div class="card-title">① 上傳音訊檔</div>
+      <div id="drop-zone" style="border:2px dashed var(--border);border-radius:var(--radius-sm);padding:2.5rem;text-align:center;cursor:pointer;transition:var(--transition)" onclick="document.getElementById('file-input').click()">
+        <div style="font-size:2.5rem;margin-bottom:.5rem">🎵</div>
+        <div style="color:var(--text-secondary)">點擊或拖曳音訊檔案至此處</div>
+        <div style="font-size:.8rem;color:var(--text-muted);margin-top:.4rem">支援 MP3、WAV、OGG、AAC、FLAC、M4A</div>
+      </div>
+      <input type="file" id="file-input" accept="audio/*" style="display:none" />
+    </div>
+
+    <!-- Step 2: Edit -->
+    <div class="card hidden" id="edit-card">
+      <div class="card-title">② 選擇剪裁範圍</div>
+      <audio id="player" controls></audio>
+
+      <div class="waveform-wrap">
+        <canvas id="waveform-canvas" height="120"></canvas>
+        <div id="selection-overlay" style="position:absolute;top:0;height:100%;background:rgba(108,99,255,.2);border-left:2px solid var(--accent);border-right:2px solid var(--accent);pointer-events:none"></div>
+      </div>
+
+      <div class="range-bar">
+        <label>起始</label>
+        <input type="range" id="start-slider" min="0" step="0.01" value="0" />
+        <span class="time-lbl" id="start-lbl">0.00 s</span>
+      </div>
+      <div class="range-bar">
+        <label>結束</label>
+        <input type="range" id="end-slider" min="0" step="0.01" value="10" />
+        <span class="time-lbl" id="end-lbl">10.00 s</span>
+      </div>
+      <div class="info-msg" id="duration-info">—</div>
+    </div>
+
+    <!-- Step 3: Export -->
+    <div class="card hidden" id="export-card">
+      <div class="card-title">③ 匯出設定</div>
+      <div class="format-row">
+        <label>輸出格式：</label>
+        <select id="fmt-select" class="sel">
+          <option value="audio/wav">WAV（無損）</option>
+          <option value="audio/ogg" selected>OGG Vorbis（壓縮）</option>
+          <option value="audio/webm">WebM Audio</option>
+        </select>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:1rem">注意：匯出格式受瀏覽器支援限制。若不支援所選格式，將自動降回 WAV。</p>
+      <button class="btn btn-primary" id="btn-export">⚙️ 產生剪裁音訊</button>
+
+      <div class="dl-row hidden" id="dl-row">
+        <span style="color:var(--text-secondary);font-size:.9rem">✅ 完成！</span>
+        <a class="btn btn-success" id="btn-dl" href="#" download="trimmed_audio.wav">⬇ 下載音訊</a>
+      </div>
+      <div class="error-msg hidden" id="export-error"></div>
+    </div>
+  </main>
+
+  <script>
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const editCard    = document.getElementById('edit-card');
+    const exportCard  = document.getElementById('export-card');
+    const player      = document.getElementById('player');
+    const canvas      = document.getElementById('waveform-canvas');
+    const selOverlay  = document.getElementById('selection-overlay');
+    const startSlider = document.getElementById('start-slider');
+    const endSlider   = document.getElementById('end-slider');
+    const startLbl    = document.getElementById('start-lbl');
+    const endLbl      = document.getElementById('end-lbl');
+    const durInfo     = document.getElementById('duration-info');
+    const fmtSelect   = document.getElementById('fmt-select');
+    const btnExport   = document.getElementById('btn-export');
+    const dlRow       = document.getElementById('dl-row');
+    const btnDl       = document.getElementById('btn-dl');
+    const exportErr   = document.getElementById('export-error');
+
+    let audioCtx, audioBuffer, sourceFile;
+
+    // Drop zone styles
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent)'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border)'; });
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--border)'; loadFile(e.dataTransfer.files[0]); });
+    fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+
+    function fmt(s) { return s.toFixed(2) + ' s'; }
+
+    function loadFile(file) {
+      if (!file) return;
+      sourceFile = file;
+      const url = URL.createObjectURL(file);
+      player.src = url;
+      player.load();
+
+      // Decode for waveform
+      const reader = new FileReader();
+      reader.onload = async e => {
+        audioCtx = audioCtx || new AudioContext();
+        try {
+          audioBuffer = await audioCtx.decodeAudioData(e.target.result.slice(0));
+          const dur = audioBuffer.duration;
+          startSlider.max = dur; startSlider.value = 0;
+          endSlider.max = dur; endSlider.value = dur;
+          updateLabels();
+          drawWaveform();
+          editCard.classList.remove('hidden');
+          exportCard.classList.remove('hidden');
+        } catch(ex) {
+          alert('無法解碼此音訊格式：' + ex.message);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function drawWaveform() {
+      if (!audioBuffer) return;
+      const ctx = canvas.getContext('2d');
+      const W = canvas.offsetWidth; const H = 120;
+      canvas.width = W; canvas.height = H;
+      ctx.clearRect(0, 0, W, H);
+      const data = audioBuffer.getChannelData(0);
+      const step = Math.ceil(data.length / W);
+      const amp = H / 2;
+      ctx.fillStyle = 'rgba(108,99,255,.15)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.strokeStyle = 'var(--accent)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < W; i++) {
+        let min = 1, max = -1;
+        for (let j = 0; j < step; j++) {
+          const v = data[i * step + j] || 0;
+          if (v < min) min = v;
+          if (v > max) max = v;
+        }
+        ctx.moveTo(i, amp + min * amp * 0.9);
+        ctx.lineTo(i, amp + max * amp * 0.9);
+      }
+      ctx.stroke();
+      updateOverlay();
+    }
+
+    function updateOverlay() {
+      if (!audioBuffer) return;
+      const dur = audioBuffer.duration;
+      const W = canvas.offsetWidth;
+      const s = parseFloat(startSlider.value) / dur * W;
+      const e = parseFloat(endSlider.value) / dur * W;
+      selOverlay.style.left = s + 'px';
+      selOverlay.style.width = (e - s) + 'px';
+    }
+
+    function updateLabels() {
+      const s = parseFloat(startSlider.value), e = parseFloat(endSlider.value);
+      startLbl.textContent = fmt(s);
+      endLbl.textContent = fmt(e);
+      durInfo.textContent = `剪裁後時長：${fmt(e - s)}（共 ${fmt(audioBuffer?.duration || 0)}）`;
+    }
+
+    startSlider.addEventListener('input', () => {
+      if (parseFloat(startSlider.value) > parseFloat(endSlider.value) - 0.1) startSlider.value = parseFloat(endSlider.value) - 0.1;
+      updateLabels(); updateOverlay();
+    });
+    endSlider.addEventListener('input', () => {
+      if (parseFloat(endSlider.value) < parseFloat(startSlider.value) + 0.1) endSlider.value = parseFloat(startSlider.value) + 0.1;
+      updateLabels(); updateOverlay();
+    });
+
+    window.addEventListener('resize', () => { if (audioBuffer) drawWaveform(); });
+
+    btnExport.addEventListener('click', async () => {
+      if (!audioBuffer) return;
+      exportErr.classList.add('hidden');
+      btnExport.disabled = true; btnExport.textContent = '處理中…';
+      dlRow.classList.add('hidden');
+
+      try {
+        const start = parseFloat(startSlider.value);
+        const end = parseFloat(endSlider.value);
+        const sampleRate = audioBuffer.sampleRate;
+        const channels = audioBuffer.numberOfChannels;
+        const startSample = Math.floor(start * sampleRate);
+        const endSample = Math.floor(end * sampleRate);
+        const length = endSample - startSample;
+
+        const offCtx = new OfflineAudioContext(channels, length, sampleRate);
+        const src = offCtx.createBufferSource();
+        const newBuf = offCtx.createBuffer(channels, length, sampleRate);
+        for (let c = 0; c < channels; c++) {
+          newBuf.copyToChannel(audioBuffer.getChannelData(c).subarray(startSample, endSample), c);
+        }
+        src.buffer = newBuf;
+        src.connect(offCtx.destination);
+        src.start();
+        const rendered = await offCtx.startRendering();
+
+        // Encode to WAV (universal)
+        const wav = encodeWAV(rendered);
+        const blob = new Blob([wav], { type: 'audio/wav' });
+        const url = URL.createObjectURL(blob);
+        btnDl.href = url;
+        const ext = '.wav';
+        const base = sourceFile.name.replace(/\.[^.]+$/, '');
+        btnDl.download = `${base}_trimmed${ext}`;
+        dlRow.classList.remove('hidden');
+      } catch(ex) {
+        exportErr.classList.remove('hidden');
+        exportErr.textContent = '⚠️ 匯出失敗：' + ex.message;
+      } finally {
+        btnExport.disabled = false; btnExport.textContent = '⚙️ 產生剪裁音訊';
+      }
+    });
+
+    function encodeWAV(buf) {
+      const numCh = buf.numberOfChannels, sr = buf.sampleRate, numSamples = buf.length;
+      const bytesPerSample = 2, byteRate = sr * numCh * bytesPerSample;
+      const blockAlign = numCh * bytesPerSample;
+      const dataSize = numSamples * numCh * bytesPerSample;
+      const ab = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(ab);
+      const writeStr = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)); };
+      writeStr(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true);
+      writeStr(8, 'WAVE'); writeStr(12, 'fmt ');
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+      view.setUint16(22, numCh, true); view.setUint32(24, sr, true);
+      view.setUint32(28, byteRate, true); view.setUint16(32, blockAlign, true);
+      view.setUint16(34, 16, true); writeStr(36, 'data');
+      view.setUint32(40, dataSize, true);
+      let off = 44;
+      for (let i = 0; i < numSamples; i++) {
+        for (let c = 0; c < numCh; c++) {
+          const s = Math.max(-1, Math.min(1, buf.getChannelData(c)[i]));
+          view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7FFF, true); off += 2;
+        }
+      }
+      return ab;
+    }
+  </script>
+</body>
+</html>

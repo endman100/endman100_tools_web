@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2D 姿勢編輯器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">2D 姿勢編輯器</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🧍</div>
+      <div>
+        <h1>2D 姿勢編輯器</h1>
+        <p>拖曳關節節點調整人體骨架，支援 OpenPose 格式匯出，適用於 ControlNet 與 AI 繪圖參考</p>
+      </div>
+    </div>
+
+    <!-- ① Presets -->
+    <div class="card">
+      <div class="card-title">① 預設動作</div>
+      <div class="preset-group">
+        <span class="preset-group-label">基礎</span>
+        <div class="preset-btns">
+          <button class="btn btn-ghost preset-btn active" data-preset="stand">🧍 直立</button>
+          <button class="btn btn-ghost preset-btn" data-preset="tpose">✈ T字形</button>
+          <button class="btn btn-ghost preset-btn" data-preset="walk">🚶 走路</button>
+          <button class="btn btn-ghost preset-btn" data-preset="run">🏃 跑步</button>
+          <button class="btn btn-ghost preset-btn" data-preset="sit">🪑 坐下</button>
+          <button class="btn btn-ghost preset-btn" data-preset="lie">🛌 躺下</button>
+          <button class="btn btn-ghost preset-btn" data-preset="kneel">🧎 跪下</button>
+        </div>
+      </div>
+      <div class="preset-group" style="margin-top:0.75rem;">
+        <span class="preset-group-label">動作</span>
+        <div class="preset-btns">
+          <button class="btn btn-ghost preset-btn" data-preset="raise_hand">🙋 舉手</button>
+          <button class="btn btn-ghost preset-btn" data-preset="jump">🤸 跳躍</button>
+          <button class="btn btn-ghost preset-btn" data-preset="punch">🥊 打拳</button>
+          <button class="btn btn-ghost preset-btn" data-preset="lunge">🏋 弓箭步</button>
+          <button class="btn btn-ghost preset-btn" data-preset="hands_hips">🕴 叉腰</button>
+          <button class="btn btn-ghost preset-btn" data-preset="bend">🙇 俯身</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ② Style & Mode -->
+    <div class="card">
+      <div class="card-title">② 骨架風格 ＆ 操作模式</div>
+      <div class="controls-row">
+        <div class="control-group">
+          <span class="control-label">風格</span>
+          <div class="style-btns">
+            <button class="style-btn active" data-style="comfyui">ComfyUI 標準</button>
+            <button class="style-btn" data-style="openpose">彩色中左右</button>
+            <button class="style-btn" data-style="openpose-white">彩色白底</button>
+            <button class="style-btn" data-style="white">白色骨架</button>
+            <button class="style-btn" data-style="neon">霓虹</button>
+          </div>
+        </div>
+      </div>
+      <div class="controls-row" style="margin-top:1rem; justify-content:space-between; flex-wrap:wrap; gap:0.75rem;">
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button class="btn btn-ghost" id="move-all-btn">↔ 整體移動</button>
+          <button class="btn btn-ghost rot-btn" data-axis="z">↻ 旋 Z</button>
+          <button class="btn btn-ghost rot-btn" data-axis="y">⇄ 旋 Y</button>
+          <button class="btn btn-ghost rot-btn" data-axis="x">⇅ 旋 X</button>
+          <button class="btn btn-ghost" id="reset-btn">↺ 重設姿勢</button>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot center"></div><span>中軸（紫）</span></div>
+          <div class="legend-item"><div class="legend-dot left"></div><span>左側（藍）</span></div>
+          <div class="legend-item"><div class="legend-dot right"></div><span>右側（紅）</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ③ Canvas -->
+    <div class="card">
+      <div class="canvas-top-bar">
+        <div class="ratio-group">
+          <!-- ComfyUI standard pixel sizes (default) -->
+          <div class="ratio-section">
+            <span class="control-label">ComfyUI 常用尺寸</span>
+            <div class="ratio-btns">
+              <button class="ratio-btn active" data-w="512" data-h="768">512×768<span class="size-tag">SD1.5↑</span></button>
+              <button class="ratio-btn" data-w="512" data-h="512">512×512<span class="size-tag">SD1.5□</span></button>
+              <button class="ratio-btn" data-w="768" data-h="512">768×512<span class="size-tag">SD1.5→</span></button>
+              <button class="ratio-btn" data-w="832" data-h="1216">832×1216<span class="size-tag">SDXL↑</span></button>
+              <button class="ratio-btn" data-w="1024" data-h="1024">1024×1024<span class="size-tag">SDXL□</span></button>
+              <button class="ratio-btn" data-w="1216" data-h="832">1216×832<span class="size-tag">SDXL→</span></button>
+            </div>
+          </div>
+          <!-- Standard aspect ratios -->
+          <div class="ratio-section" style="margin-top:0.6rem;">
+            <span class="control-label">比例</span>
+            <div class="ratio-btns">
+              <button class="ratio-btn" data-ratio="3:4">3:4</button>
+              <button class="ratio-btn" data-ratio="9:16">9:16</button>
+              <button class="ratio-btn" data-ratio="1:1">1:1</button>
+              <button class="ratio-btn" data-ratio="4:3">4:3</button>
+              <button class="ratio-btn" data-ratio="16:9">16:9</button>
+              <button class="ratio-btn" data-ratio="custom">自訂</button>
+            </div>
+          </div>
+          <div id="custom-size-inputs" class="custom-size-row" style="display:none;">
+            <input type="number" id="custom-w" value="512" min="100" max="2048" />
+            <span>×</span>
+            <input type="number" id="custom-h" value="768" min="100" max="2048" />
+            <button class="btn btn-ghost btn-sm" id="apply-custom-btn">套用</button>
+          </div>
+        </div>
+        <div class="canvas-actions">
+          <label class="btn btn-ghost btn-sm" for="bg-upload" style="cursor:pointer;">🖼 背景圖片</label>
+          <input type="file" id="bg-upload" accept="image/*" style="display:none;" />
+          <div id="bg-controls" style="display:none; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" id="bg-fit-btn" title="保持比例，完整顯示">⊡ Fit</button>
+            <button class="btn btn-ghost btn-sm" id="bg-fill-btn" title="保持比例，填滿畫布">⊞ Fill</button>
+            <div class="pan-grid">
+              <button class="pan-btn" id="pan-up">↑</button>
+              <button class="pan-btn" id="pan-left">←</button>
+              <button class="pan-btn" id="pan-center" title="置中">⊙</button>
+              <button class="pan-btn" id="pan-right">→</button>
+              <button class="pan-btn" id="pan-down">↓</button>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="clear-bg-btn">✕ 清除</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="pose-canvas"></canvas>
+      </div>
+
+      <div class="export-bar">
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+          <button class="btn btn-primary" id="export-png1x-btn">⬇ PNG 原尺寸（ComfyUI 用）</button>
+          <button class="btn btn-ghost" id="export-png-btn">⬇ PNG 2×（高畫質）</button>
+          <button class="btn btn-ghost" id="export-comfy-btn">🤖 ComfyUI JSON</button>
+          <button class="btn btn-ghost" id="export-json-btn">{ } OpenPose JSON</button>
+          <button class="btn btn-ghost" id="export-txt-btn">📄 TXT</button>
+        </div>
+        <span class="canvas-info-label" id="canvas-info">512 × 768</span>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+  // =====================================================================
+  // SKELETON DEFINITION
+  // =====================================================================
+  const JOINT_DEFS = [
+    { id: 'head',       side: 'center', r: 15 },
+    { id: 'neck',       side: 'center', r: 7  },
+    { id: 'chest',      side: 'center', r: 7  },
+    { id: 'waist',      side: 'center', r: 7  },
+    { id: 'l_shoulder', side: 'left',   r: 9  },
+    { id: 'r_shoulder', side: 'right',  r: 9  },
+    { id: 'l_elbow',    side: 'left',   r: 8  },
+    { id: 'r_elbow',    side: 'right',  r: 8  },
+    { id: 'l_wrist',    side: 'left',   r: 7  },
+    { id: 'r_wrist',    side: 'right',  r: 7  },
+    { id: 'l_hip',      side: 'left',   r: 8  },
+    { id: 'r_hip',      side: 'right',  r: 8  },
+    { id: 'l_knee',     side: 'left',   r: 8  },
+    { id: 'r_knee',     side: 'right',  r: 8  },
+    { id: 'l_ankle',    side: 'left',   r: 7  },
+    { id: 'r_ankle',    side: 'right',  r: 7  },
+    // Face keypoints (W-shape: Nose→Eyes→Ears)
+    { id: 'r_eye',      side: 'right',  r: 5  },
+    { id: 'l_eye',      side: 'left',   r: 5  },
+    { id: 'r_ear',      side: 'right',  r: 5  },
+    { id: 'l_ear',      side: 'left',   r: 5  },
+  ];
+
+  const BONE_DEFS = [
+    ['head', 'neck'],
+    ['neck', 'chest'],
+    ['chest', 'waist'],
+    ['neck', 'l_shoulder'], ['l_shoulder', 'l_elbow'], ['l_elbow', 'l_wrist'],
+    ['neck', 'r_shoulder'], ['r_shoulder', 'r_elbow'], ['r_elbow', 'r_wrist'],
+    ['waist', 'l_hip'], ['l_hip', 'l_knee'], ['l_knee', 'l_ankle'],
+    ['waist', 'r_hip'], ['r_hip', 'r_knee'], ['r_knee', 'r_ankle'],
+    // Face W-shape (Nose→REye→REar  /  Nose→LEye→LEar)
+    ['head', 'r_eye'], ['r_eye', 'r_ear'],
+    ['head', 'l_eye'], ['l_eye', 'l_ear'],
+  ];
+
+  const SIDE_COLOR = { center: '#a855f7', left: '#3b82f6', right: '#ef4444' };
+  const JOINT_MAP  = {};
+  JOINT_DEFS.forEach(j => { JOINT_MAP[j.id] = j; });
+
+  function boneColor(fromId, toId) {
+    const fs = JOINT_MAP[fromId].side, ts = JOINT_MAP[toId].side;
+    if (fs === ts) return SIDE_COLOR[fs];
+    return fs === 'center' ? SIDE_COLOR[ts] : SIDE_COLOR[fs];
+  }
+
+  // =====================================================================
+  // OPENPOSE 18-KEYPOINT MAPPING  (COCO body_18)
+  // =====================================================================
+  const OPENPOSE_KP = [
+    { name: 'Nose',      joint: 'head',       ox:  0,   oy:  0  },
+    { name: 'Neck',      joint: 'neck',       ox:  0,   oy:  0  },
+    { name: 'RShoulder', joint: 'r_shoulder', ox:  0,   oy:  0  },
+    { name: 'RElbow',    joint: 'r_elbow',    ox:  0,   oy:  0  },
+    { name: 'RWrist',    joint: 'r_wrist',    ox:  0,   oy:  0  },
+    { name: 'LShoulder', joint: 'l_shoulder', ox:  0,   oy:  0  },
+    { name: 'LElbow',    joint: 'l_elbow',    ox:  0,   oy:  0  },
+    { name: 'LWrist',    joint: 'l_wrist',    ox:  0,   oy:  0  },
+    { name: 'RHip',      joint: 'r_hip',      ox:  0,   oy:  0  },
+    { name: 'RKnee',     joint: 'r_knee',     ox:  0,   oy:  0  },
+    { name: 'RAnkle',    joint: 'r_ankle',    ox:  0,   oy:  0  },
+    { name: 'LHip',      joint: 'l_hip',      ox:  0,   oy:  0  },
+    { name: 'LKnee',     joint: 'l_knee',     ox:  0,   oy:  0  },
+    { name: 'LAnkle',    joint: 'l_ankle',    ox:  0,   oy:  0  },
+    { name: 'REye',      joint: 'r_eye',      ox:  0,   oy:  0  },
+    { name: 'LEye',      joint: 'l_eye',      ox:  0,   oy:  0  },
+    { name: 'REar',      joint: 'r_ear',      ox:  0,   oy:  0  },
+    { name: 'LEar',      joint: 'l_ear',      ox:  0,   oy:  0  },
+  ];
+
+  // =====================================================================
+  // COMFYUI OPENPOSE COLOR TABLES
+  // Based on ControlNet/OpenPose standard (COCO body_18)
+  // =====================================================================
+  // 18 limb colors cycling R→G→B
+  const OP_COLORS = [
+    '#ff0000','#ff5500','#ffaa00','#ffff00','#aaff00','#55ff00',
+    '#00ff00','#00ff55','#00ffaa','#00ffff','#00aaff','#0055ff',
+    '#0000ff','#5500ff','#aa00ff','#ff00ff','#ff00aa','#ff0055',
+  ];
+  // Per-bone ComfyUI color (keyed as 'fromId-toId')
+  const COMFY_BONE = {
+    'head-neck':          OP_COLORS[12],  // neck→nose
+    'neck-chest':         '#9933ff',      // custom spine
+    'chest-waist':        '#7722ee',      // custom spine
+    'neck-r_shoulder':    OP_COLORS[0],   // neck→RShoulder
+    'r_shoulder-r_elbow': OP_COLORS[2],   // RShoulder→RElbow
+    'r_elbow-r_wrist':    OP_COLORS[3],   // RElbow→RWrist
+    'neck-l_shoulder':    OP_COLORS[1],   // neck→LShoulder
+    'l_shoulder-l_elbow': OP_COLORS[4],   // LShoulder→LElbow
+    'l_elbow-l_wrist':    OP_COLORS[5],   // LElbow→LWrist
+    'waist-r_hip':        OP_COLORS[6],   // neck→RHip (adapted)
+    'r_hip-r_knee':       OP_COLORS[7],   // RHip→RKnee
+    'r_knee-r_ankle':     OP_COLORS[8],   // RKnee→RAnkle
+    'waist-l_hip':        OP_COLORS[9],   // neck→LHip (adapted)
+    'l_hip-l_knee':       OP_COLORS[10],  // LHip→LKnee
+    'l_knee-l_ankle':     OP_COLORS[11],  // LKnee→LAnkle
+    // Face W-shape
+    'head-r_eye':         OP_COLORS[13],  // Nose→REye
+    'r_eye-r_ear':        OP_COLORS[14],  // REye→REar
+    'head-l_eye':         OP_COLORS[15],  // Nose→LEye
+    'l_eye-l_ear':        OP_COLORS[16],  // LEye→LEar
+  };
+  // Per-joint ComfyUI color (keyed by joint id)
+  const COMFY_JOINT = {
+    'head':       OP_COLORS[0],   // Nose
+    'neck':       OP_COLORS[1],   // Neck
+    'r_shoulder': OP_COLORS[2],   // RShoulder
+    'r_elbow':    OP_COLORS[3],   // RElbow
+    'r_wrist':    OP_COLORS[4],   // RWrist
+    'l_shoulder': OP_COLORS[5],   // LShoulder
+    'l_elbow':    OP_COLORS[6],   // LElbow
+    'l_wrist':    OP_COLORS[7],   // LWrist
+    'r_hip':      OP_COLORS[8],   // RHip
+    'r_knee':     OP_COLORS[9],   // RKnee
+    'r_ankle':    OP_COLORS[10],  // RAnkle
+    'l_hip':      OP_COLORS[11],  // LHip
+    'l_knee':     OP_COLORS[12],  // LKnee
+    'l_ankle':    OP_COLORS[13],  // LAnkle
+    'chest':      '#9933ff',
+    'waist':      '#7722ee',
+    // Face keypoints
+    'r_eye':      OP_COLORS[14],  // REye
+    'l_eye':      OP_COLORS[15],  // LEye
+    'r_ear':      OP_COLORS[16],  // REar
+    'l_ear':      OP_COLORS[17],  // LEar
+  };
+
+  // =====================================================================
+  // CANVAS RATIOS  (aspect-ratio presets scale to similar pixel area)
+  // =====================================================================
+  const RATIO_SIZES = {
+    '9:16': [512, 912], '3:4': [512, 682],
+    '1:1':  [512, 512], '4:3': [682, 512], '16:9': [912, 512],
+  };
+
+  // =====================================================================
+  // PRESET POSES  (reference space: 450 × 600)
+  // =====================================================================
+  const REF_W = 450, REF_H = 600;
+
+  const PRESETS = {
+    stand: {
+      head:[225,50], neck:[225,95], chest:[225,185], waist:[225,295],
+      l_shoulder:[163,148], r_shoulder:[288,148],
+      l_elbow:[130,225],    r_elbow:[320,225],
+      l_wrist:[118,315],    r_wrist:[333,315],
+      l_hip:[192,345],      r_hip:[258,345],
+      l_knee:[190,450],     r_knee:[260,450],
+      l_ankle:[190,555],    r_ankle:[260,555],
+    },
+    tpose: {
+      head:[225,50], neck:[225,95], chest:[225,185], waist:[225,295],
+      l_shoulder:[163,148], r_shoulder:[288,148],
+      l_elbow:[80,148],     r_elbow:[370,148],
+      l_wrist:[18,148],     r_wrist:[432,148],
+      l_hip:[192,345],      r_hip:[258,345],
+      l_knee:[190,450],     r_knee:[260,450],
+      l_ankle:[190,555],    r_ankle:[260,555],
+    },
+    walk: {
+      head:[225,48], neck:[225,93], chest:[225,183], waist:[225,292],
+      l_shoulder:[163,146], r_shoulder:[288,146],
+      l_elbow:[115,218],    r_elbow:[320,202],
+      l_wrist:[100,305],    r_wrist:[330,283],
+      l_hip:[192,342],      r_hip:[258,342],
+      l_knee:[178,448],     r_knee:[272,418],
+      l_ankle:[168,558],    r_ankle:[268,490],
+    },
+    run: {
+      head:[240,38], neck:[235,80], chest:[232,170], waist:[232,278],
+      l_shoulder:[175,134], r_shoulder:[295,134],
+      l_elbow:[120,168],    r_elbow:[322,212],
+      l_wrist:[108,242],    r_wrist:[340,305],
+      l_hip:[202,325],      r_hip:[262,325],
+      l_knee:[168,400],     r_knee:[275,420],
+      l_ankle:[162,490],    r_ankle:[278,535],
+    },
+    sit: {
+      head:[225,75], neck:[225,122], chest:[225,210], waist:[225,310],
+      l_shoulder:[163,175], r_shoulder:[288,175],
+      l_elbow:[130,248],    r_elbow:[320,248],
+      l_wrist:[118,330],    r_wrist:[333,330],
+      l_hip:[185,362],      r_hip:[265,362],
+      l_knee:[150,362],     r_knee:[300,362],
+      l_ankle:[148,495],    r_ankle:[302,495],
+    },
+    lie: {
+      head:[35,300],   neck:[69,300],  chest:[136,300], waist:[219,300],
+      l_shoulder:[109,254], r_shoulder:[109,347],
+      l_elbow:[166,229],    r_elbow:[166,371],
+      l_wrist:[234,220],    r_wrist:[234,381],
+      l_hip:[256,275],      r_hip:[256,325],
+      l_knee:[335,274],     r_knee:[335,326],
+      l_ankle:[414,274],    r_ankle:[414,326],
+    },
+    kneel: {
+      head:[225,65], neck:[225,110], chest:[225,200], waist:[225,308],
+      l_shoulder:[163,163], r_shoulder:[288,163],
+      l_elbow:[130,242],    r_elbow:[320,242],
+      l_wrist:[118,330],    r_wrist:[333,330],
+      l_hip:[194,360],      r_hip:[256,360],
+      l_knee:[192,470],     r_knee:[258,470],
+      l_ankle:[205,395],    r_ankle:[245,395],
+    },
+    raise_hand: {
+      head:[225,50], neck:[225,95], chest:[225,185], waist:[225,295],
+      l_shoulder:[163,148], r_shoulder:[288,148],
+      l_elbow:[130,225],    r_elbow:[318,80],
+      l_wrist:[118,315],    r_wrist:[332,22],
+      l_hip:[192,345],      r_hip:[258,345],
+      l_knee:[190,450],     r_knee:[260,450],
+      l_ankle:[190,555],    r_ankle:[260,555],
+    },
+    jump: {
+      head:[225,42], neck:[225,85], chest:[225,172], waist:[225,278],
+      l_shoulder:[158,128], r_shoulder:[292,128],
+      l_elbow:[115,62],     r_elbow:[335,62],
+      l_wrist:[135,25],     r_wrist:[315,25],
+      l_hip:[195,332],      r_hip:[255,332],
+      l_knee:[168,425],     r_knee:[282,425],
+      l_ankle:[162,515],    r_ankle:[288,515],
+    },
+    punch: {
+      head:[245,50], neck:[240,95], chest:[238,185], waist:[235,295],
+      l_shoulder:[175,150], r_shoulder:[300,148],
+      l_elbow:[162,248],    r_elbow:[378,150],
+      l_wrist:[158,338],    r_wrist:[425,148],
+      l_hip:[200,345],      r_hip:[265,345],
+      l_knee:[198,450],     r_knee:[268,450],
+      l_ankle:[198,555],    r_ankle:[268,555],
+    },
+    lunge: {
+      head:[245,55], neck:[245,100], chest:[242,190], waist:[240,300],
+      l_shoulder:[178,155], r_shoulder:[305,155],
+      l_elbow:[148,235],    r_elbow:[335,235],
+      l_wrist:[138,325],    r_wrist:[345,325],
+      l_hip:[200,355],      r_hip:[275,355],
+      l_knee:[170,460],     r_knee:[310,430],
+      l_ankle:[155,555],    r_ankle:[330,490],
+    },
+    hands_hips: {
+      head:[225,50], neck:[225,95], chest:[225,185], waist:[225,295],
+      l_shoulder:[163,148], r_shoulder:[288,148],
+      l_elbow:[128,240],    r_elbow:[322,240],
+      l_wrist:[185,295],    r_wrist:[265,295],
+      l_hip:[192,345],      r_hip:[258,345],
+      l_knee:[190,450],     r_knee:[260,450],
+      l_ankle:[190,555],    r_ankle:[260,555],
+    },
+    bend: {
+      head:[225,195], neck:[225,162], chest:[235,252], waist:[240,340],
+      l_shoulder:[168,208], r_shoulder:[295,208],
+      l_elbow:[145,308],    r_elbow:[320,308],
+      l_wrist:[135,402],    r_wrist:[330,402],
+      l_hip:[208,390],      r_hip:[272,390],
+      l_knee:[198,480],     r_knee:[262,480],
+      l_ankle:[195,565],    r_ankle:[260,565],
+    },
+  };
+
+  // =====================================================================
+  // STATE
+  // =====================================================================
+  let canvasW = 450, canvasH = 600;
+  let joints       = {};
+  let selectedJoint = null;
+  let isDragging   = false;
+  let dragStartX   = 0, dragStartY = 0;
+  let moveAllMode  = false;
+  let rotateMode    = '';     // '' | 'z' | 'y' | 'x'
+  let rotStartAngle = 0;
+  let rotSnapStartX = 0, rotSnapStartY = 0;
+  let rotCX = 0, rotCY = 0;
+  let rotSnapshot   = {};   // joints snapshot at rotate-start
+  let bgImage      = null;
+  let bgFit        = 'contain';
+  let bgOffsetX    = 0, bgOffsetY = 0;
+  let currentPreset = 'stand';
+  let currentStyle  = 'comfyui';
+
+  // =====================================================================
+  // CANVAS INIT
+  // =====================================================================
+  const canvas = document.getElementById('pose-canvas');
+  const ctx    = canvas.getContext('2d');
+
+  function initCanvas(w, h) {
+    canvasW = w; canvasH = h;
+    canvas.width = w; canvas.height = h;
+    document.getElementById('canvas-info').textContent = `${w} × ${h}`;
+    render();
+  }
+
+  function canvasPos(e) {
+    const rect  = canvas.getBoundingClientRect();
+    const scaleX = canvasW / rect.width, scaleY = canvasH / rect.height;
+    const src   = e.touches ? e.touches[0] : e;
+    return { x: (src.clientX - rect.left) * scaleX, y: (src.clientY - rect.top) * scaleY };
+  }
+
+  // =====================================================================
+  // PRESETS
+  // =====================================================================
+  function applyPreset(name) {
+    currentPreset = name;
+    for (const [id, [px, py]] of Object.entries(PRESETS[name])) {
+      joints[id] = { x: (px / REF_W) * canvasW, y: (py / REF_H) * canvasH };
+    }
+    initFaceJoints();
+    render();
+  }
+
+  // Auto-place eye/ear joints relative to head+neck position (W-shape)
+  function initFaceJoints() {
+    const h = joints['head'], n = joints['neck'];
+    if (!h || !n) return;
+    const dx = h.x - n.x, dy = h.y - n.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;   // up: neck→head unit vector
+    const rx = -uy, ry = ux;              // right perpendicular
+    const ew = len * 0.30;   // eye lateral offset
+    const aw = len * 0.52;   // ear lateral offset (wider)
+    const ef = len * 0.05;   // eyes slightly forward (above nose)
+    joints['r_eye'] = { x: h.x + rx*ew + ux*ef, y: h.y + ry*ew + uy*ef };
+    joints['l_eye'] = { x: h.x - rx*ew + ux*ef, y: h.y - ry*ew + uy*ef };
+    joints['r_ear'] = { x: h.x + rx*aw,          y: h.y + ry*aw          };
+    joints['l_ear'] = { x: h.x - rx*aw,          y: h.y - ry*aw          };
+  }
+
+  function rescaleJoints(nw, nh) {
+    for (const id of Object.keys(joints)) {
+      joints[id].x = (joints[id].x / canvasW) * nw;
+      joints[id].y = (joints[id].y / canvasH) * nh;
+    }
+  }
+
+  // =====================================================================
+  // DRAWING
+  // =====================================================================
+  function getStyleCfg() {
+    const s = canvasW / 450;
+    switch (currentStyle) {
+      case 'comfyui':
+        return { bg:'#000000', bw:Math.max(3,5*s), bsb:4*s, ba:1,
+                 jsb:4*s,  bC:(f,t)=>COMFY_BONE[f+'-'+t]||'#ffffff', jC:id=>COMFY_JOINT[id]||'#ffffff' };
+      case 'openpose':
+        return { bg:'#0f0f1a', bw:Math.max(3,5*s), bsb:12*s, ba:0.92,
+                 jsb:14*s, bC:boneColor, jC: id => SIDE_COLOR[JOINT_MAP[id].side] };
+      case 'openpose-white':
+        return { bg:'#f5f5f0', bw:Math.max(3,5*s), bsb:5*s, ba:0.95,
+                 jsb:5*s,  bC:boneColor, jC: id => SIDE_COLOR[JOINT_MAP[id].side] };
+      case 'white':
+        return { bg:'#111111', bw:Math.max(2,3*s), bsb:0, ba:0.9,
+                 jsb:0,    bC:()=>'#e0e0e0', jC:()=>'#e0e0e0' };
+      case 'neon':
+        return { bg:'#000000', bw:Math.max(4,6*s), bsb:28*s, ba:1,
+                 jsb:22*s, bC:boneColor, jC: id => SIDE_COLOR[JOINT_MAP[id].side] };
+      default:
+        return getStyleCfg();
+    }
+  }
+
+  function drawBackground(c, w, h) {
+    const cfg = getStyleCfg();
+    c.fillStyle = cfg.bg;
+    c.fillRect(0, 0, w, h);
+    if (!bgImage) return;
+
+    const iw = bgImage.naturalWidth, ih = bgImage.naturalHeight;
+    const cAR = w / h, iAR = iw / ih;
+    let dw, dh;
+    if (bgFit === 'contain') {
+      if (iAR > cAR) { dw = w; dh = w / iAR; }
+      else           { dh = h; dw = h * iAR; }
+    } else {
+      if (iAR > cAR) { dh = h; dw = h * iAR; }
+      else           { dw = w; dh = w / iAR; }
+    }
+    c.drawImage(bgImage, (w - dw) / 2 + bgOffsetX, (h - dh) / 2 + bgOffsetY, dw, dh);
+  }
+
+  // Darken a #rrggbb colour by factor f (0–1); used for OpenPose bone rendering
+  function hexDarken(hex, f) {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`;
+  }
+
+  // Draw a filled-ellipse bone (mirrors cv2.ellipse2Poly + fillConvexPoly in util.draw_bodypose)
+  function drawEllipseLimb(c, x1, y1, x2, y2, sw, color) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    if (len < 1) return;
+    c.save();
+    c.translate((x1 + x2) / 2, (y1 + y2) / 2);
+    c.rotate(Math.atan2(y2 - y1, x2 - x1));
+    c.beginPath();
+    c.ellipse(0, 0, len / 2, sw, 0, 0, Math.PI * 2);
+    c.fillStyle = color;
+    c.fill();
+    c.restore();
+  }
+
+  function drawSkeleton(c, w, h, showSel) {
+    const cfg = getStyleCfg();
+    const s   = w / 450;
+
+    drawBackground(c, w, h);
+
+    // ── ComfyUI ControlNet exact rendering ───────────────────────────────
+    // Mirrors util.draw_bodypose() in comfyui_controlnet_aux:
+    //   bones  → filled ellipse polygon at 60% colour brightness (stickwidth=4)
+    //   joints → flat filled circle at full brightness (radius=4)
+    //   no shadow / glow of any kind
+    if (currentStyle === 'comfyui') {
+      const sw = Math.max(4, 4 * s);   // stickwidth (scaled to canvas)
+      const jr = Math.max(4, 4 * s);   // joint radius (scaled to canvas)
+      for (const [fId, tId] of BONE_DEFS) {
+        const f = joints[fId], t = joints[tId];
+        if (!f || !t) continue;
+        drawEllipseLimb(c, f.x, f.y, t.x, t.y, sw, hexDarken(cfg.bC(fId, tId), 0.6));
+      }
+      for (const def of JOINT_DEFS) {
+        const j = joints[def.id];
+        if (!j) continue;
+        const isSel = showSel && def.id === selectedJoint;
+        c.beginPath();
+        c.arc(j.x, j.y, isSel ? jr * 1.6 : jr, 0, Math.PI * 2);
+        c.fillStyle = cfg.jC(def.id);
+        c.fill();
+      }
+      return;
+    }
+
+    c.lineCap = 'round'; c.lineJoin = 'round';
+
+    // — Bones —
+    for (const [fId, tId] of BONE_DEFS) {
+      const f = joints[fId], t = joints[tId];
+      if (!f || !t) continue;
+      const color = cfg.bC(fId, tId);
+      c.save();
+      c.shadowBlur = cfg.bsb; c.shadowColor = color;
+      c.strokeStyle = color; c.lineWidth = cfg.bw; c.globalAlpha = cfg.ba;
+      c.beginPath(); c.moveTo(f.x, f.y); c.lineTo(t.x, t.y); c.stroke();
+      c.restore();
+    }
+
+    // — Joints —
+    for (const def of JOINT_DEFS) {
+      const j = joints[def.id];
+      if (!j) continue;
+      const color  = cfg.jC(def.id);
+      const isSel  = showSel && def.id === selectedJoint;
+      const baseR  = def.r * s;
+      const r      = isSel ? baseR * 1.5 : baseR;
+
+      c.save();
+      c.shadowBlur  = isSel ? cfg.jsb * 1.5 : cfg.jsb;
+      c.shadowColor = color;
+
+      if (def.id === 'head') {
+        c.strokeStyle = color;
+        c.lineWidth   = (isSel ? 3.5 : 2.5) * s;
+        c.globalAlpha = 1;
+        c.beginPath(); c.arc(j.x, j.y, r, 0, Math.PI * 2); c.stroke();
+        c.globalAlpha = currentStyle === 'neon' ? 0.28 : 0.12;
+        c.fillStyle   = color;
+        c.beginPath(); c.arc(j.x, j.y, r, 0, Math.PI * 2); c.fill();
+      } else {
+        c.fillStyle   = color;
+        c.globalAlpha = 1;
+        c.beginPath(); c.arc(j.x, j.y, r, 0, Math.PI * 2); c.fill();
+        if (currentStyle !== 'white') {
+          c.globalAlpha = 0.55;
+          c.fillStyle   = '#ffffff';
+          c.beginPath(); c.arc(j.x, j.y, r * 0.38, 0, Math.PI * 2); c.fill();
+        }
+      }
+      c.restore();
+    }
+  }
+
+  function render() { drawSkeleton(ctx, canvasW, canvasH, true); }
+
+  // =====================================================================
+  // HIT DETECTION
+  // =====================================================================
+  function findNearest(x, y) {
+    let best = null, bd = Infinity;
+    const hitR = Math.max(22, canvasW * 0.055);
+    for (const def of JOINT_DEFS) {
+      const j = joints[def.id];
+      if (!j) continue;
+      const d = Math.hypot(j.x - x, j.y - y);
+      if (d < hitR && d < bd) { best = def.id; bd = d; }
+    }
+    return best;
+  }
+
+  // =====================================================================
+  // ROTATION HELPERS
+  // =====================================================================
+  function jointsCentroid() {
+    const ids = Object.keys(joints);
+    if (!ids.length) return { x: canvasW/2, y: canvasH/2 };
+    return {
+      x: ids.reduce((s, id) => s + joints[id].x, 0) / ids.length,
+      y: ids.reduce((s, id) => s + joints[id].y, 0) / ids.length,
+    };
+  }
+
+  // Apply 3-axis rotation from snapshot
+  //   z  = 2D roll (in-plane rotation around centroid)
+  //   y  = yaw / turn left-right  (X-coords scaled by cosθ)
+  //   x  = pitch / tilt fwd-back  (Y-coords scaled by cosθ)
+  function applyRotation(mode, cx, cy, angle) {
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    for (const id of Object.keys(rotSnapshot)) {
+      const dx = rotSnapshot[id].x - cx, dy = rotSnapshot[id].y - cy;
+      if (mode === 'z') {
+        joints[id] = { x: cx + dx*cos - dy*sin, y: cy + dx*sin + dy*cos };
+      } else if (mode === 'y') {
+        // yaw: X collapses toward centre (simulate turning)
+        joints[id] = { x: cx + dx * cos, y: rotSnapshot[id].y };
+      } else if (mode === 'x') {
+        // pitch: Y collapses toward centre (simulate tilting)
+        joints[id] = { x: rotSnapshot[id].x, y: cy + dy * cos };
+      }
+    }
+  }
+
+  // =====================================================================
+  // POINTER / TOUCH
+  // =====================================================================
+  function onPointerDown(e) {
+    e.preventDefault();
+    const p = canvasPos(e);
+    dragStartX = p.x; dragStartY = p.y;
+    if (rotateMode) {
+      isDragging = true;
+      const c = jointsCentroid();
+      rotCX = c.x; rotCY = c.y;
+      rotSnapStartX = p.x; rotSnapStartY = p.y;
+      if (rotateMode === 'z') rotStartAngle = Math.atan2(p.y - rotCY, p.x - rotCX);
+      rotSnapshot = {};
+      for (const id of Object.keys(joints)) rotSnapshot[id] = { x: joints[id].x, y: joints[id].y };
+    } else if (moveAllMode) {
+      isDragging = true;
+    } else {
+      const hit = findNearest(p.x, p.y);
+      if (hit) { selectedJoint = hit; isDragging = true; }
+    }
+    render();
+  }
+
+  function applyDrag(p) {
+    if (!isDragging) return;
+    if (rotateMode) {
+      let angle;
+      if (rotateMode === 'z') {
+        angle = Math.atan2(p.y - rotCY, p.x - rotCX) - rotStartAngle;
+      } else if (rotateMode === 'y') {
+        // horizontal drag → yaw angle (±π across full canvas width)
+        angle = (p.x - rotSnapStartX) / (canvasW * 0.55) * Math.PI;
+      } else {
+        // x-axis: vertical drag → pitch angle
+        angle = (p.y - rotSnapStartY) / (canvasH * 0.55) * Math.PI;
+      }
+      applyRotation(rotateMode, rotCX, rotCY, angle);
+    } else if (moveAllMode) {
+      const dx = p.x - dragStartX, dy = p.y - dragStartY;
+      for (const id of Object.keys(joints)) { joints[id].x += dx; joints[id].y += dy; }
+      dragStartX = p.x; dragStartY = p.y;
+    } else if (selectedJoint) {
+      joints[selectedJoint].x = p.x; joints[selectedJoint].y = p.y;
+    }
+    render();
+  }
+
+  function onMouseMove(e) {
+    if (isDragging)             canvas.style.cursor = 'grabbing';
+    else if (rotateMode === 'z') canvas.style.cursor = 'grab';
+    else if (rotateMode === 'y') canvas.style.cursor = 'ew-resize';
+    else if (rotateMode === 'x') canvas.style.cursor = 'ns-resize';
+    else if (moveAllMode)       canvas.style.cursor = 'grab';
+    else {
+      const p = canvasPos(e);
+      canvas.style.cursor = findNearest(p.x, p.y) ? 'grab' : 'crosshair';
+    }
+    if (!isDragging) return;
+    e.preventDefault();
+    applyDrag(canvasPos(e));
+  }
+
+  function onTouchMove(e) {
+    if (!isDragging) return;
+    e.preventDefault();
+    applyDrag(canvasPos(e));
+  }
+
+  function onPointerUp() {
+    isDragging = false; selectedJoint = null;
+    if      (rotateMode === 'y') canvas.style.cursor = 'ew-resize';
+    else if (rotateMode === 'x') canvas.style.cursor = 'ns-resize';
+    else if (rotateMode || moveAllMode) canvas.style.cursor = 'grab';
+    else    canvas.style.cursor = 'crosshair';
+    render();
+  }
+
+  canvas.addEventListener('mousedown',  onPointerDown);
+  canvas.addEventListener('mousemove',  onMouseMove);
+  canvas.addEventListener('mouseup',    onPointerUp);
+  canvas.addEventListener('mouseleave', onPointerUp);
+  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  canvas.addEventListener('touchmove',  onTouchMove,   { passive: false });
+  canvas.addEventListener('touchend',   onPointerUp);
+
+  // =====================================================================
+  // UI — PRESETS
+  // =====================================================================
+  document.querySelectorAll('.preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyPreset(btn.dataset.preset);
+    });
+  });
+
+  // =====================================================================
+  // UI — STYLES
+  // =====================================================================
+  document.querySelectorAll('.style-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentStyle = btn.dataset.style;
+      render();
+    });
+  });
+
+  // =====================================================================
+  // UI — MODE
+  // =====================================================================
+  const moveAllBtn = document.getElementById('move-all-btn');
+  moveAllBtn.addEventListener('click', () => {
+    moveAllMode = !moveAllMode;
+    if (moveAllMode) rotateMode = '';
+    moveAllBtn.classList.toggle('active', moveAllMode);
+    moveAllBtn.textContent = moveAllMode ? '✓ 整體移動（開啟）' : '↔ 整體移動';
+    document.querySelectorAll('.rot-btn').forEach(b => b.classList.remove('active'));
+    canvas.style.cursor = moveAllMode ? 'grab' : 'crosshair';
+  });
+
+  // Three rotation axes: Z = roll, Y = yaw (turn left/right), X = pitch (tilt fwd/back)
+  document.querySelectorAll('.rot-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const axis = btn.dataset.axis;
+      rotateMode = (rotateMode === axis) ? '' : axis;
+      if (rotateMode) { moveAllMode = false; moveAllBtn.classList.remove('active'); moveAllBtn.textContent = '↔ 整體移動'; }
+      document.querySelectorAll('.rot-btn').forEach(b => b.classList.toggle('active', b.dataset.axis === rotateMode));
+      if      (rotateMode === 'y') canvas.style.cursor = 'ew-resize';
+      else if (rotateMode === 'x') canvas.style.cursor = 'ns-resize';
+      else if (rotateMode)         canvas.style.cursor = 'grab';
+      else                         canvas.style.cursor = 'crosshair';
+    });
+  });
+
+
+  document.getElementById('reset-btn').addEventListener('click', () => applyPreset(currentPreset));
+
+  // =====================================================================
+  // UI — RATIO
+  // =====================================================================
+  document.querySelectorAll('.ratio-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const r = btn.dataset.ratio;
+      const bw = btn.dataset.w, bh = btn.dataset.h;
+      document.getElementById('custom-size-inputs').style.display = r === 'custom' ? 'flex' : 'none';
+      if (bw && bh) {
+        // Exact ComfyUI pixel size
+        const nw = parseInt(bw), nh = parseInt(bh);
+        rescaleJoints(nw, nh); initCanvas(nw, nh);
+      } else if (r && r !== 'custom') {
+        const [nw, nh] = RATIO_SIZES[r];
+        rescaleJoints(nw, nh); initCanvas(nw, nh);
+      }
+    });
+  });
+
+  document.getElementById('apply-custom-btn').addEventListener('click', () => {
+    const nw = Math.max(64, Math.min(2048, parseInt(document.getElementById('custom-w').value) || 512));
+    const nh = Math.max(64, Math.min(2048, parseInt(document.getElementById('custom-h').value) || 768));
+    rescaleJoints(nw, nh); initCanvas(nw, nh);
+  });
+
+  // =====================================================================
+  // UI — BACKGROUND
+  // =====================================================================
+  document.getElementById('bg-upload').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      bgImage = img; bgOffsetX = 0; bgOffsetY = 0;
+      document.getElementById('bg-controls').style.display = 'flex';
+      render();
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
+  document.getElementById('clear-bg-btn').addEventListener('click', () => {
+    bgImage = null; bgOffsetX = 0; bgOffsetY = 0;
+    document.getElementById('bg-controls').style.display = 'none';
+    document.getElementById('bg-upload').value = '';
+    render();
+  });
+
+  document.getElementById('bg-fit-btn').addEventListener('click',  () => { bgFit = 'contain'; render(); });
+  document.getElementById('bg-fill-btn').addEventListener('click', () => { bgFit = 'cover';   render(); });
+
+  const PAN = 20;
+  document.getElementById('pan-up').addEventListener('click',     () => { bgOffsetY -= PAN; render(); });
+  document.getElementById('pan-down').addEventListener('click',   () => { bgOffsetY += PAN; render(); });
+  document.getElementById('pan-left').addEventListener('click',   () => { bgOffsetX -= PAN; render(); });
+  document.getElementById('pan-right').addEventListener('click',  () => { bgOffsetX += PAN; render(); });
+  document.getElementById('pan-center').addEventListener('click', () => { bgOffsetX = 0; bgOffsetY = 0; render(); });
+
+  // =====================================================================
+  // EXPORT — PNG 原尺寸 (1×, ComfyUI 直接使用)
+  // =====================================================================
+  document.getElementById('export-png1x-btn').addEventListener('click', () => {
+    const off = document.createElement('canvas');
+    off.width = canvasW; off.height = canvasH;
+    const oc = off.getContext('2d');
+    drawSkeleton(oc, canvasW, canvasH, false);
+    dl(off.toDataURL('image/png'), `pose_${canvasW}x${canvasH}.png`);
+  });
+
+  // =====================================================================
+  // EXPORT — PNG 2× (高畫質)
+  // =====================================================================
+  document.getElementById('export-png-btn').addEventListener('click', () => {
+    const scale = 2;
+    const off = document.createElement('canvas');
+    off.width = canvasW * scale; off.height = canvasH * scale;
+    const oc = off.getContext('2d');
+    oc.scale(scale, scale);
+    drawSkeleton(oc, canvasW, canvasH, false);
+    dl(off.toDataURL('image/png'), `pose_${canvasW}x${canvasH}_2x.png`);
+  });
+
+  // =====================================================================
+  // EXPORT — ComfyUI JSON  (comfyui-controlnet-aux PoseKeypoint format)
+  // Keypoints are normalized [0,1] so ComfyUI can scale to any resolution
+  // =====================================================================
+  document.getElementById('export-comfy-btn').addEventListener('click', () => {
+    const people = [];
+    const kpts = OPENPOSE_KP.map(kp => {
+      const j = joints[kp.joint];
+      if (j) {
+        return {
+          x: +((j.x + kp.ox) / canvasW).toFixed(6),
+          y: +((j.y + kp.oy) / canvasH).toFixed(6),
+          score: 1.0,
+        };
+      }
+      return { x: 0, y: 0, score: 0 };
+    });
+    const payload = {
+      canvas_height: canvasH,
+      canvas_width:  canvasW,
+      people: [{
+        pose_keypoints:       kpts,
+        face_keypoints:       [],
+        hand_left_keypoints:  [],
+        hand_right_keypoints: [],
+      }],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    dl(URL.createObjectURL(blob), `pose_comfyui_${canvasW}x${canvasH}.json`);
+  });
+
+  // =====================================================================
+  // EXPORT — OpenPose JSON
+  // =====================================================================
+  document.getElementById('export-json-btn').addEventListener('click', () => {
+    const kpts = [];
+    for (const kp of OPENPOSE_KP) {
+      const j = joints[kp.joint];
+      if (j) {
+        kpts.push(+((j.x + kp.ox).toFixed(2)), +((j.y + kp.oy).toFixed(2)), 1.0);
+      } else {
+        kpts.push(0, 0, 0);
+      }
+    }
+    const payload = {
+      version: '1.3',
+      canvas_width:  canvasW,
+      canvas_height: canvasH,
+      people: [{
+        person_id:               [-1],
+        pose_keypoints_2d:        kpts,
+        face_keypoints_2d:        [],
+        hand_left_keypoints_2d:   [],
+        hand_right_keypoints_2d:  [],
+        pose_keypoints_3d:        [],
+        face_keypoints_3d:        [],
+        hand_left_keypoints_3d:   [],
+        hand_right_keypoints_3d:  [],
+      }],
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    dl(URL.createObjectURL(blob), 'pose_openpose.json');
+  });
+
+  // =====================================================================
+  // EXPORT — TXT
+  // =====================================================================
+  document.getElementById('export-txt-btn').addEventListener('click', () => {
+    const lines = [
+      '# 2D Pose Editor — OpenPose Keypoints',
+      `# Canvas: ${canvasW} x ${canvasH}`,
+      '# Index,Name,X,Y,Confidence',
+      '',
+    ];
+    OPENPOSE_KP.forEach((kp, i) => {
+      const j = joints[kp.joint];
+      const x = j ? (j.x + kp.ox).toFixed(2) : '0.00';
+      const y = j ? (j.y + kp.oy).toFixed(2) : '0.00';
+      const c = j ? '1.00' : '0.00';
+      lines.push(`${i},${kp.name},${x},${y},${c}`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    dl(URL.createObjectURL(blob), 'pose_openpose.txt');
+  });
+
+  function dl(href, filename) {
+    const a = document.createElement('a');
+    a.href = href; a.download = filename; a.click();
+  }
+
+  // =====================================================================
+  // INIT  — default: 512×768 (SD1.5 portrait, most common ComfyUI size)
+  // =====================================================================
+  initCanvas(512, 768);
+  applyPreset('stand');
+  </script>
+</body>
+</html>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>線上影片截圖工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">影片截圖</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎬</div>
+      <div>
+        <h1>線上影片截圖工具</h1>
+        <p>上傳本地影片，自由拖曳時間軸，一鍵擷取影格並匯出高畫質圖片。完全離線，隱私零外洩。</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="card" id="upload-card">
+      <div class="card-title">① 上傳影片</div>
+      <div class="upload-area" id="drop-zone">
+        <input type="file" id="file-input" accept="video/*" />
+        <div class="upload-icon">🎥</div>
+        <p>拖曳影片至此處，或點擊選擇檔案</p>
+        <p class="upload-hint">支援 MP4、WebM、MOV、AVI 等常見影片格式 · 所有處理均在瀏覽器本地完成</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Player & Controls -->
+    <div id="player-section" class="hidden">
+
+      <div class="card">
+        <div class="card-title">② 拖曳時間軸選取影格</div>
+
+        <div class="video-wrap">
+          <video id="video-el" preload="metadata"></video>
+        </div>
+
+        <div class="timeline-section">
+          <div class="time-display">
+            <span class="time-current" id="time-current">00:00.000</span>
+            <span class="time-total" id="time-total">00:00.000</span>
+          </div>
+          <input type="range" id="timeline-slider" min="0" max="10000" value="0" step="1" />
+          <div class="timeline-btns">
+            <button class="btn btn-ghost" id="btn-play">▶ 播放</button>
+            <button class="btn btn-ghost" id="btn-prev">◀ 前一格</button>
+            <button class="btn btn-ghost" id="btn-next">▶ 下一格</button>
+            <button class="btn btn-primary" id="btn-capture">📷 擷取此影格</button>
+            <div class="frame-step-group">
+              <label for="frame-step">步進</label>
+              <input type="number" id="frame-step" value="0.0333" min="0.001" step="0.0001" />
+              <span style="font-size:0.82rem;color:var(--text-muted)">秒</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Export Settings -->
+      <div class="card">
+        <div class="card-title">③ 匯出設定</div>
+        <div class="settings-row">
+          <div class="setting-group">
+            <label for="fmt-select">格式</label>
+            <select id="fmt-select">
+              <option value="image/png">PNG（無損）</option>
+              <option value="image/jpeg">JPEG</option>
+              <option value="image/webp">WebP</option>
+            </select>
+          </div>
+          <div class="setting-group" id="quality-group" style="display:none">
+            <label for="quality-input">品質</label>
+            <input type="range" id="quality-input" min="0.1" max="1" step="0.05" value="0.92"
+              style="width:100px;accent-color:var(--accent)" />
+            <span id="quality-label" style="font-size:0.88rem;color:var(--text-muted);min-width:2.5rem">92%</span>
+          </div>
+          <button class="btn btn-ghost" id="btn-reset">↺ 重新上傳</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Captured Frames -->
+      <div class="card">
+        <div class="card-title">④ 已擷取影格</div>
+        <div id="frames-empty" class="frames-empty">尚未擷取任何影格，請在上方拖曳時間軸後按「擷取此影格」。</div>
+        <div class="frames-grid" id="frames-grid"></div>
+      </div>
+
+      <!-- Action Bar -->
+      <div class="action-bar" id="action-bar">
+        <div class="action-bar-info">
+          共 <strong id="frame-count">0</strong> 張影格
+        </div>
+        <div class="action-btns">
+          <button class="btn btn-ghost" id="btn-clear-all">🗑 清除全部</button>
+          <button class="btn btn-success" id="btn-download-all">⬇ 下載全部（ZIP）</button>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script>
+    // ---- DOM refs ----
+    const fileInput     = document.getElementById('file-input');
+    const dropZone      = document.getElementById('drop-zone');
+    const uploadCard    = document.getElementById('upload-card');
+    const playerSection = document.getElementById('player-section');
+    const videoEl       = document.getElementById('video-el');
+    const slider        = document.getElementById('timeline-slider');
+    const timeCurrent   = document.getElementById('time-current');
+    const timeTotal     = document.getElementById('time-total');
+    const btnPlay       = document.getElementById('btn-play');
+    const btnPrev       = document.getElementById('btn-prev');
+    const btnNext       = document.getElementById('btn-next');
+    const btnCapture    = document.getElementById('btn-capture');
+    const frameStep     = document.getElementById('frame-step');
+    const fmtSelect     = document.getElementById('fmt-select');
+    const qualityGroup  = document.getElementById('quality-group');
+    const qualityInput  = document.getElementById('quality-input');
+    const qualityLabel  = document.getElementById('quality-label');
+    const btnReset      = document.getElementById('btn-reset');
+    const framesGrid    = document.getElementById('frames-grid');
+    const framesEmpty   = document.getElementById('frames-empty');
+    const frameCount    = document.getElementById('frame-count');
+    const btnClearAll   = document.getElementById('btn-clear-all');
+    const btnDownAll    = document.getElementById('btn-download-all');
+
+    let frames = []; // { dataUrl, time, ext }
+    let rafId  = null;
+    let playing = false;
+
+    // ---- Helpers ----
+    function fmtTime(s) {
+      const mm  = String(Math.floor(s / 60)).padStart(2, '0');
+      const ss  = String(Math.floor(s % 60)).padStart(2, '0');
+      const ms  = String(Math.round((s % 1) * 1000)).padStart(3, '0');
+      return `${mm}:${ss}.${ms}`;
+    }
+
+    function updateTimeDisplay() {
+      timeCurrent.textContent = fmtTime(videoEl.currentTime);
+      slider.value = Math.round((videoEl.currentTime / videoEl.duration) * 10000);
+    }
+
+    function extOf(mime) {
+      return mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+    }
+
+    // ---- Load Video ----
+    function loadVideo(file) {
+      const url = URL.createObjectURL(file);
+      videoEl.src = url;
+      videoEl.addEventListener('loadedmetadata', () => {
+        timeTotal.textContent = fmtTime(videoEl.duration);
+        timeCurrent.textContent = fmtTime(0);
+        uploadCard.classList.add('hidden');
+        playerSection.classList.remove('hidden');
+      }, { once: true });
+    }
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) loadVideo(fileInput.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const f = e.dataTransfer.files[0];
+      if (f && f.type.startsWith('video/')) loadVideo(f);
+    });
+
+    // ---- Slider ----
+    slider.addEventListener('input', () => {
+      if (!videoEl.duration) return;
+      videoEl.currentTime = (slider.value / 10000) * videoEl.duration;
+    });
+
+    videoEl.addEventListener('timeupdate', updateTimeDisplay);
+
+    // ---- Play/Pause ----
+    function togglePlay() {
+      if (videoEl.paused) {
+        videoEl.play();
+        playing = true;
+        btnPlay.textContent = '⏸ 暫停';
+      } else {
+        videoEl.pause();
+        playing = false;
+        btnPlay.textContent = '▶ 播放';
+      }
+    }
+    btnPlay.addEventListener('click', togglePlay);
+    videoEl.addEventListener('ended', () => { playing = false; btnPlay.textContent = '▶ 播放'; });
+
+    // ---- Frame step ----
+    btnPrev.addEventListener('click', () => {
+      videoEl.pause();
+      playing = false;
+      btnPlay.textContent = '▶ 播放';
+      videoEl.currentTime = Math.max(0, videoEl.currentTime - parseFloat(frameStep.value));
+    });
+    btnNext.addEventListener('click', () => {
+      videoEl.pause();
+      playing = false;
+      btnPlay.textContent = '▶ 播放';
+      videoEl.currentTime = Math.min(videoEl.duration, videoEl.currentTime + parseFloat(frameStep.value));
+    });
+
+    // ---- Quality toggle ----
+    fmtSelect.addEventListener('change', () => {
+      qualityGroup.style.display = fmtSelect.value === 'image/png' ? 'none' : 'flex';
+    });
+    qualityInput.addEventListener('input', () => {
+      qualityLabel.textContent = Math.round(qualityInput.value * 100) + '%';
+    });
+
+    // ---- Capture Frame ----
+    btnCapture.addEventListener('click', () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = videoEl.videoWidth;
+      canvas.height = videoEl.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+      const mime    = fmtSelect.value;
+      const quality = parseFloat(qualityInput.value);
+      const dataUrl = canvas.toDataURL(mime, quality);
+      const t = videoEl.currentTime;
+      frames.push({ dataUrl, time: t, ext: extOf(mime) });
+      renderFrames();
+    });
+
+    function renderFrames() {
+      framesEmpty.style.display = frames.length ? 'none' : 'block';
+      frameCount.textContent = frames.length;
+      framesGrid.innerHTML = '';
+      frames.forEach((f, i) => {
+        const item = document.createElement('div');
+        item.className = 'frame-item';
+        const img = document.createElement('img');
+        img.src = f.dataUrl;
+        img.alt = `Frame ${fmtTime(f.time)}`;
+        img.loading = 'lazy';
+        const footer = document.createElement('div');
+        footer.className = 'frame-item-footer';
+        const tspan = document.createElement('span');
+        tspan.className = 'frame-time';
+        tspan.textContent = fmtTime(f.time);
+        const del = document.createElement('button');
+        del.className = 'frame-del';
+        del.textContent = '✕';
+        del.title = '刪除';
+        del.addEventListener('click', e => {
+          e.stopPropagation();
+          frames.splice(i, 1);
+          renderFrames();
+        });
+        // Click to download single frame
+        img.addEventListener('click', () => downloadSingle(f));
+        footer.appendChild(tspan);
+        footer.appendChild(del);
+        item.appendChild(img);
+        item.appendChild(footer);
+        framesGrid.appendChild(item);
+      });
+    }
+
+    function downloadSingle(f) {
+      const a = document.createElement('a');
+      a.href = f.dataUrl;
+      a.download = `frame_${fmtTime(f.time).replace(/[:.]/g, '-')}.${f.ext}`;
+      a.click();
+    }
+
+    // ---- Clear All ----
+    btnClearAll.addEventListener('click', () => {
+      if (!frames.length) return;
+      frames = [];
+      renderFrames();
+    });
+
+    // ---- Download All ZIP ----
+    btnDownAll.addEventListener('click', async () => {
+      if (!frames.length) return;
+      btnDownAll.textContent = '⏳ 打包中…';
+      btnDownAll.disabled = true;
+      const zip = new JSZip();
+      frames.forEach((f, i) => {
+        const b64 = f.dataUrl.split(',')[1];
+        zip.file(`frame_${String(i + 1).padStart(4, '0')}_${fmtTime(f.time).replace(/[:.]/g, '-')}.${f.ext}`, b64, { base64: true });
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = 'frames.zip';
+      a.click();
+      URL.revokeObjectURL(url);
+      btnDownAll.textContent = '⬇ 下載全部（ZIP）';
+      btnDownAll.disabled = false;
+    });
+
+    // ---- Reset ----
+    btnReset.addEventListener('click', () => {
+      videoEl.pause();
+      videoEl.src = '';
+      playing = false;
+      btnPlay.textContent = '▶ 播放';
+      frames = [];
+      renderFrames();
+      playerSection.classList.add('hidden');
+      uploadCard.classList.remove('hidden');
+      fileInput.value = '';
+    });
+  </script>
+</body>
+</html>

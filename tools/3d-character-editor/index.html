@@ -1,0 +1,712 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>3D 角色動作編輯器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">3D 角色編輯器</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎭</div>
+      <div>
+        <h1>3D 角色動作編輯器</h1>
+        <p>即時調整 3D 角色姿勢，支援點擊選取部位、渲染風格、自訂顏色、光源控制與姿勢 JSON 匯出。所有處理均在本地完成。</p>
+      </div>
+    </div>
+
+    <div class="editor-layout">
+
+      <!-- ── Controls Panel ── -->
+      <aside class="controls-panel">
+
+        <!-- Presets -->
+        <div class="panel-section">
+          <div class="panel-label">預設動作</div>
+          <div class="preset-grid">
+            <button class="btn-preset active" data-preset="stand">站立</button>
+            <button class="btn-preset" data-preset="walk">走路</button>
+            <button class="btn-preset" data-preset="run">跑步</button>
+            <button class="btn-preset" data-preset="sit">坐下</button>
+            <button class="btn-preset" data-preset="jump">跳躍</button>
+          </div>
+        </div>
+
+        <!-- Body Parts -->
+        <div class="panel-section">
+          <div class="panel-label">身體部位 <span class="hint-badge">點擊 3D 可選取</span></div>
+          <div class="part-grid">
+            <button class="btn-part active" data-part="torso">軀幹</button>
+            <button class="btn-part" data-part="head">頭部</button>
+            <button class="btn-part" data-part="leftUpperArm">左上臂</button>
+            <button class="btn-part" data-part="leftForearm">左前臂</button>
+            <button class="btn-part" data-part="rightUpperArm">右上臂</button>
+            <button class="btn-part" data-part="rightForearm">右前臂</button>
+            <button class="btn-part" data-part="leftUpperLeg">左大腿</button>
+            <button class="btn-part" data-part="leftLowerLeg">左小腿</button>
+            <button class="btn-part" data-part="rightUpperLeg">右大腿</button>
+            <button class="btn-part" data-part="rightLowerLeg">右小腿</button>
+          </div>
+        </div>
+
+        <!-- Rotation Controls -->
+        <div class="panel-section">
+          <div class="panel-label">旋轉 — <span id="active-part-label">軀幹</span></div>
+          <div class="rot-row">
+            <span class="rot-label">前後旋轉</span>
+            <input type="range" class="rot-slider" id="rot-x" min="-180" max="180" value="0" />
+            <span class="rot-val" id="rot-x-val">0°</span>
+            <button class="btn-reset-axis" data-axis="x">重設</button>
+          </div>
+          <div class="rot-row">
+            <span class="rot-label">左右旋轉</span>
+            <input type="range" class="rot-slider" id="rot-y" min="-180" max="180" value="0" />
+            <span class="rot-val" id="rot-y-val">0°</span>
+            <button class="btn-reset-axis" data-axis="y">重設</button>
+          </div>
+          <div class="rot-row">
+            <span class="rot-label">側向旋轉</span>
+            <input type="range" class="rot-slider" id="rot-z" min="-180" max="180" value="0" />
+            <span class="rot-val" id="rot-z-val">0°</span>
+            <button class="btn-reset-axis" data-axis="z">重設</button>
+          </div>
+          <div style="margin-top:0.65rem">
+            <button class="btn-ghost full-width" id="reset-part-btn">↺ 重設此部位</button>
+          </div>
+        </div>
+
+        <!-- Part Color -->
+        <div class="panel-section">
+          <div class="panel-label">部位顏色</div>
+          <div class="color-row">
+            <input type="color" id="part-color" value="#5d55ee" />
+            <span class="color-label" id="part-color-label">軀幹</span>
+          </div>
+          <div style="margin-top:0.5rem">
+            <button class="btn-ghost" id="reset-colors-btn">↺ 重設所有顏色</button>
+          </div>
+        </div>
+
+        <!-- Render Style -->
+        <div class="panel-section">
+          <div class="panel-label">渲染風格</div>
+          <div class="style-grid">
+            <button class="btn-style active" data-style="solid">立體</button>
+            <button class="btn-style" data-style="flat">平面</button>
+            <button class="btn-style" data-style="toon">卡通</button>
+            <button class="btn-style" data-style="wire">線框</button>
+            <button class="btn-style" data-style="clay">黏土</button>
+            <button class="btn-style" data-style="skeleton">骨架</button>
+          </div>
+        </div>
+
+        <!-- Skeleton Options -->
+        <div class="panel-section" id="skeleton-options" style="display:none">
+          <div class="panel-label">骨架設定</div>
+          <div class="color-row">
+            <input type="color" id="bone-color" value="#00ffaa" />
+            <span class="color-label">顏色</span>
+          </div>
+          <div class="rot-row" style="margin-top:0.5rem">
+            <span class="rot-label">粗細</span>
+            <input type="range" class="rot-slider" id="bone-thickness" min="1" max="20" value="5" />
+            <span class="rot-val" id="bone-thickness-val">5</span>
+          </div>
+        </div>
+
+        <!-- Light Settings -->
+        <div class="panel-section">
+          <div class="panel-label">光源設定</div>
+          <div class="rot-row">
+            <span class="rot-label">環境光</span>
+            <input type="range" class="rot-slider" id="light-ambient" min="0" max="100" value="55" />
+            <span class="rot-val" id="light-ambient-val">55%</span>
+          </div>
+          <div class="rot-row">
+            <span class="rot-label">方向光</span>
+            <input type="range" class="rot-slider" id="light-sun" min="0" max="200" value="95" />
+            <span class="rot-val" id="light-sun-val">95%</span>
+          </div>
+          <div class="rot-row">
+            <span class="rot-label">光源方位</span>
+            <input type="range" class="rot-slider" id="light-azimuth" min="-180" max="180" value="45" />
+            <span class="rot-val" id="light-azimuth-val">45°</span>
+          </div>
+          <div class="rot-row">
+            <span class="rot-label">光源仰角</span>
+            <input type="range" class="rot-slider" id="light-elevation" min="5" max="85" value="60" />
+            <span class="rot-val" id="light-elevation-val">60°</span>
+          </div>
+        </div>
+
+        <!-- Scale -->
+        <div class="panel-section">
+          <div class="panel-label">角色比例</div>
+          <div class="rot-row">
+            <input type="range" class="rot-slider" id="char-scale" min="50" max="150" value="100" />
+            <span class="rot-val" id="char-scale-val">100%</span>
+          </div>
+        </div>
+
+        <!-- Camera -->
+        <div class="panel-section">
+          <div class="panel-label">視角旋轉</div>
+          <label class="toggle-label">
+            <input type="checkbox" id="auto-rotate" />
+            <span>自動旋轉</span>
+          </label>
+        </div>
+
+        <!-- Pose JSON -->
+        <div class="panel-section">
+          <div class="panel-label">姿勢記錄</div>
+          <div class="ref-btns">
+            <button class="btn-ghost" id="export-pose-btn">匯出 JSON</button>
+            <button class="btn-ghost" id="import-pose-btn">匯入 JSON</button>
+          </div>
+          <textarea class="pose-textarea" id="pose-json" placeholder="姿勢 JSON..." style="display:none"></textarea>
+          <div id="pose-json-actions" style="display:none">
+            <button class="btn-ghost" id="apply-pose-btn">套用</button>
+            <button class="btn-ghost" id="close-pose-btn">關閉</button>
+          </div>
+        </div>
+
+        <!-- Reference Image -->
+        <div class="panel-section">
+          <div class="panel-label">參考圖片</div>
+          <div class="ref-btns">
+            <label class="btn-ghost upload-label">
+              上傳圖片
+              <input type="file" id="ref-img-input" accept="image/*" hidden />
+            </label>
+            <button class="btn-ghost" id="remove-ref-btn" style="display:none">移除圖片</button>
+          </div>
+          <div class="ref-mode-row" id="ref-mode-row" style="display:none">
+            <span>模式</span>
+            <label class="radio-label">
+              <input type="radio" name="ref-mode" value="overlay" checked />
+              參考覆蓋
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="ref-mode" value="scene" />
+              場景匯出
+            </label>
+          </div>
+        </div>
+
+        <!-- Export -->
+        <div class="panel-section">
+          <button class="btn-primary full-width" id="export-btn">↓ 匯出 PNG</button>
+        </div>
+
+      </aside>
+
+      <!-- ── 3D Viewport ── -->
+      <div class="viewport-wrapper">
+        <div id="three-canvas"></div>
+        <div class="viewport-hint">左鍵旋轉 · 滾輪縮放 · 右鍵平移 · 點擊選取部位</div>
+        <img id="ref-overlay"
+          style="display:none;position:absolute;inset:0;width:100%;height:100%;
+                 object-fit:contain;pointer-events:none;opacity:0.4;" />
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Three.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // ── Renderer ──────────────────────────────────────────────
+    const container = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.setClearColor(0x0d0d1c);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0x0d0d1c, 14, 28);
+
+    const camera = new THREE.PerspectiveCamera(42, 1, 0.05, 80);
+    camera.position.set(0, 1.6, 5.5);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, 1.1, 0);
+    controls.minDistance = 1.2;
+    controls.maxDistance = 18;
+    controls.autoRotateSpeed = 1.8;
+    controls.update();
+
+    // ── Lights ────────────────────────────────────────────────
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.55);
+    scene.add(ambientLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.95);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    scene.add(sunLight);
+
+    const fillLight = new THREE.DirectionalLight(0x8b83ff, 0.35);
+    scene.add(fillLight);
+
+    function updateSunPosition() {
+      const az = parseFloat(document.getElementById('light-azimuth').value)   * Math.PI / 180;
+      const el = parseFloat(document.getElementById('light-elevation').value)  * Math.PI / 180;
+      const d = 10;
+      sunLight.position.set(d * Math.cos(el) * Math.sin(az), d * Math.sin(el), d * Math.cos(el) * Math.cos(az));
+      fillLight.position.set(-d * 0.5 * Math.cos(el) * Math.sin(az + Math.PI), d * 0.5, -d * 0.5 * Math.cos(el) * Math.cos(az));
+    }
+    updateSunPosition();
+
+    // ── Grid ──────────────────────────────────────────────────
+    scene.add(new THREE.GridHelper(12, 24, 0x2a2a44, 0x1c1c30));
+
+    // ── Material system ───────────────────────────────────────
+    const DEFAULT_COLORS = {
+      torso:'#5d55ee', head:'#ffd6aa',
+      leftUpperArm:'#5d55ee', leftForearm:'#5d55ee',
+      rightUpperArm:'#5d55ee', rightForearm:'#5d55ee',
+      leftUpperLeg:'#5d55ee', leftLowerLeg:'#5d55ee',
+      rightUpperLeg:'#5d55ee', rightLowerLeg:'#5d55ee',
+    };
+    const partColors = { ...DEFAULT_COLORS };
+    let currentStyle = 'solid';
+    let currentPart  = 'torso';
+
+    function getMat(style, role, hexColor) {
+      const c = new THREE.Color(hexColor);
+      if (style === 'wire') return new THREE.MeshBasicMaterial({ color: c, wireframe: true });
+      if (style === 'clay') return new THREE.MeshPhongMaterial({ color: new THREE.Color(role === 'eye' ? '#3a3a4a' : '#d9c4a8'), shininess: 0 });
+      if (role === 'eye') return new THREE.MeshPhongMaterial({ color: c });
+      if (style === 'toon') return new THREE.MeshToonMaterial({ color: c });
+      if (style === 'flat') return new THREE.MeshPhongMaterial({ color: c, shininess: 0, flatShading: true });
+      return new THREE.MeshPhongMaterial({ color: c, shininess: role === 'joint' ? 100 : (role === 'head' ? 28 : 55) });
+    }
+
+    function refreshMaterials(highlightPart) {
+      const isSkeleton = currentStyle === 'skeleton';
+      skeletonOverlay.setVisible(isSkeleton);
+      scene.traverse(obj => {
+        if (!obj.isMesh || !obj.userData.meshRole) return;
+        obj.visible = !isSkeleton;
+        if (isSkeleton) return;
+        const { meshRole, partName } = obj.userData;
+        let hex = meshRole === 'eye' ? '#222238' : meshRole === 'joint' ? (currentStyle === 'clay' ? '#d9c4a8' : '#8b83ff') : (partColors[partName] || '#5d55ee');
+        const mat = getMat(currentStyle, meshRole, hex);
+        if (highlightPart && partName === highlightPart && currentStyle !== 'wire' && meshRole !== 'eye') {
+          if (mat.emissive) mat.emissive.set(0x222266);
+        }
+        if (obj.material && obj.material.dispose) obj.material.dispose();
+        obj.material = mat;
+      });
+    }
+
+    function tag(mesh, partName, meshRole) {
+      mesh.userData.partName = partName;
+      mesh.userData.meshRole = meshRole;
+      return mesh;
+    }
+
+    // ── Character dimensions ──────────────────────────────────
+    const HEAD_R=0.21, NECK_H=0.09, TORSO_H=0.64, TORSO_W=0.44;
+    const HIP_H=0.19, HIP_W=0.36, U_ARM_H=0.36, L_ARM_H=0.30;
+    const LIMB_R=0.072, U_LEG_H=0.42, L_LEG_H=0.40, LEG_R=0.086;
+    const HIP_Y = L_LEG_H + U_LEG_H;
+
+    function newTmp() { return new THREE.MeshPhongMaterial({ color: 0x666666 }); }
+    function cyl(rT, rB, h, seg=8)  { return new THREE.Mesh(new THREE.CylinderGeometry(rT,rB,h,seg), newTmp()); }
+    function sph(r, seg=10)          { return new THREE.Mesh(new THREE.SphereGeometry(r,seg,seg), newTmp()); }
+    function box(w, h, d)            { return new THREE.Mesh(new THREE.BoxGeometry(w,h,d), newTmp()); }
+
+    // ── Build character ───────────────────────────────────────
+    const charRoot = new THREE.Group();
+    scene.add(charRoot);
+
+    const hipGroup = new THREE.Group();
+    hipGroup.position.y = HIP_Y;
+    charRoot.add(hipGroup);
+
+    const hipMesh = box(HIP_W, HIP_H, 0.21);
+    hipMesh.position.y = HIP_H * 0.5;
+    tag(hipMesh, 'torso', 'body');
+    hipGroup.add(hipMesh);
+
+    const torsoGroup = new THREE.Group();
+    torsoGroup.position.y = HIP_H;
+    hipGroup.add(torsoGroup);
+
+    const torsoMesh = box(TORSO_W, TORSO_H, 0.23);
+    torsoMesh.position.y = TORSO_H * 0.5;
+    tag(torsoMesh, 'torso', 'body');
+    torsoGroup.add(torsoMesh);
+
+    [-1,1].forEach(s => {
+      const sh = sph(LIMB_R * 1.2);
+      sh.position.set(s*(TORSO_W*0.5+LIMB_R*0.65), TORSO_H-0.05, 0);
+      tag(sh, s>0?'leftUpperArm':'rightUpperArm', 'joint');
+      torsoGroup.add(sh);
+    });
+
+    const headGroup = new THREE.Group();
+    headGroup.position.y = TORSO_H;
+    torsoGroup.add(headGroup);
+
+    tag((() => { const m=cyl(0.07,0.08,NECK_H); m.position.y=NECK_H*0.5; headGroup.add(m); return m; })(), 'head', 'body');
+    tag((() => { const m=sph(HEAD_R); m.position.y=NECK_H+HEAD_R; headGroup.add(m); return m; })(), 'head', 'head');
+    [-1,1].forEach(s => { const e=sph(0.038); e.position.set(s*0.08,NECK_H+HEAD_R+0.04,HEAD_R*0.9); tag(e,'head','eye'); headGroup.add(e); });
+
+    function makeArm(side) {
+      const lr = side>0?'left':'right', sx = side*(TORSO_W*0.5+LIMB_R*0.65);
+      const ug = new THREE.Group(); ug.position.set(sx, TORSO_H-0.05, 0); torsoGroup.add(ug);
+      const um = cyl(LIMB_R, LIMB_R*0.88, U_ARM_H); um.position.y=-U_ARM_H*0.5; tag(um,lr+'UpperArm','body'); ug.add(um);
+      const el = sph(LIMB_R*1.08); el.position.y=-U_ARM_H; tag(el,lr+'Forearm','joint'); ug.add(el);
+      const fg = new THREE.Group(); fg.position.y=-U_ARM_H; ug.add(fg);
+      const fm = cyl(LIMB_R*0.85, LIMB_R*0.72, L_ARM_H); fm.position.y=-L_ARM_H*0.5; tag(fm,lr+'Forearm','body'); fg.add(fm);
+      const hd = sph(LIMB_R*0.95); hd.position.y=-L_ARM_H; tag(hd,lr+'Forearm','body'); fg.add(hd);
+      return { upperGroup:ug, foreGroup:fg };
+    }
+
+    function makeLeg(side) {
+      const lr = side>0?'left':'right', sx = side*HIP_W*0.3;
+      const ug = new THREE.Group(); ug.position.set(sx, 0, 0); hipGroup.add(ug);
+      const um = cyl(LEG_R*1.1, LEG_R, U_LEG_H); um.position.y=-U_LEG_H*0.5; tag(um,lr+'UpperLeg','body'); ug.add(um);
+      const kn = sph(LEG_R*1.1); kn.position.y=-U_LEG_H; tag(kn,lr+'LowerLeg','joint'); ug.add(kn);
+      const lg = new THREE.Group(); lg.position.y=-U_LEG_H; ug.add(lg);
+      const lm = cyl(LEG_R, LEG_R*0.82, L_LEG_H); lm.position.y=-L_LEG_H*0.5; tag(lm,lr+'LowerLeg','body'); lg.add(lm);
+      const ft = box(0.13,0.065,0.22); ft.position.set(0,-L_LEG_H-0.03,0.055); tag(ft,lr+'LowerLeg','body'); lg.add(ft);
+      return { upperGroup:ug, lowerGroup:lg };
+    }
+
+    const {upperGroup:leftUpperArmGroup,  foreGroup:leftForearmGroup}  = makeArm(+1);
+    const {upperGroup:rightUpperArmGroup, foreGroup:rightForearmGroup} = makeArm(-1);
+    const {upperGroup:leftUpperLegGroup,  lowerGroup:leftLowerLegGroup}  = makeLeg(+1);
+    const {upperGroup:rightUpperLegGroup, lowerGroup:rightLowerLegGroup} = makeLeg(-1);
+
+    const parts = {
+      torso:torsoGroup, head:headGroup,
+      leftUpperArm:leftUpperArmGroup, leftForearm:leftForearmGroup,
+      rightUpperArm:rightUpperArmGroup, rightForearm:rightForearmGroup,
+      leftUpperLeg:leftUpperLegGroup, leftLowerLeg:leftLowerLegGroup,
+      rightUpperLeg:rightUpperLegGroup, rightLowerLeg:rightLowerLegGroup,
+    };
+    // ── Skeleton overlay ──────────────────────────────────────
+    const skeletonOverlay = (function () {
+      const jointDefs = [
+        { name:'hip',    group:hipGroup,            offset:[0, HIP_H*0.5, 0] },
+        { name:'spine',  group:torsoGroup,          offset:[0, 0, 0] },
+        { name:'chest',  group:torsoGroup,          offset:[0, TORSO_H, 0] },
+        { name:'head',   group:headGroup,           offset:[0, NECK_H+HEAD_R, 0] },
+        { name:'lSh',    group:leftUpperArmGroup,   offset:[0, 0, 0] },
+        { name:'lEl',    group:leftForearmGroup,    offset:[0, 0, 0] },
+        { name:'lWr',    group:leftForearmGroup,    offset:[0, -L_ARM_H, 0] },
+        { name:'rSh',    group:rightUpperArmGroup,  offset:[0, 0, 0] },
+        { name:'rEl',    group:rightForearmGroup,   offset:[0, 0, 0] },
+        { name:'rWr',    group:rightForearmGroup,   offset:[0, -L_ARM_H, 0] },
+        { name:'lH',     group:leftUpperLegGroup,   offset:[0, 0, 0] },
+        { name:'lK',     group:leftLowerLegGroup,   offset:[0, 0, 0] },
+        { name:'lA',     group:leftLowerLegGroup,   offset:[0, -L_LEG_H, 0] },
+        { name:'rH',     group:rightUpperLegGroup,  offset:[0, 0, 0] },
+        { name:'rK',     group:rightLowerLegGroup,  offset:[0, 0, 0] },
+        { name:'rA',     group:rightLowerLegGroup,  offset:[0, -L_LEG_H, 0] },
+      ];
+      const boneConns = [
+        ['hip','lH'],['hip','rH'],['hip','spine'],
+        ['spine','chest'],
+        ['chest','head'],
+        ['chest','lSh'],['chest','rSh'],
+        ['lSh','lEl'],['lEl','lWr'],
+        ['rSh','rEl'],['rEl','rWr'],
+        ['lH','lK'],['lK','lA'],
+        ['rH','rK'],['rK','rA'],
+      ];
+      const nameIdx = {};
+      jointDefs.forEach((j,i) => { nameIdx[j.name]=i; });
+
+      // Cylinder-based bones (real thickness control)
+      const BASE_CYL_GEO = new THREE.CylinderGeometry(1, 1, 1, 8);
+      let boneRadius = 0.018;
+      let boneHexColor = '#00ffaa';
+      const boneMeshes = boneConns.map(() => {
+        const m = new THREE.Mesh(BASE_CYL_GEO, new THREE.MeshBasicMaterial({ color: boneHexColor }));
+        m.visible = false;
+        scene.add(m);
+        return m;
+      });
+
+      // Joint dot spheres
+      const DOT_GEO = new THREE.SphereGeometry(1, 7, 7);
+      const dotMeshes = jointDefs.map(() => {
+        const m = new THREE.Mesh(DOT_GEO, new THREE.MeshBasicMaterial({ color: boneHexColor }));
+        m.visible = false;
+        scene.add(m);
+        return m;
+      });
+
+      const wpos = jointDefs.map(() => new THREE.Vector3());
+      const tmp  = new THREE.Vector3();
+      const _up  = new THREE.Vector3(0, 1, 0);
+      const _dir = new THREE.Vector3();
+      const _mid = new THREE.Vector3();
+
+      function placeBone(mesh, start, end) {
+        _dir.subVectors(end, start);
+        const len = _dir.length();
+        if (len < 0.001) { mesh.visible = false; return; }
+        mesh.visible = true;
+        _mid.addVectors(start, end).multiplyScalar(0.5);
+        mesh.position.copy(_mid);
+        mesh.scale.set(boneRadius, len, boneRadius);
+        mesh.quaternion.setFromUnitVectors(_up, _dir.clone().normalize());
+      }
+
+      function update() {
+        if (!boneMeshes[0].visible && dotMeshes[0] && !dotMeshes[0].visible) return;
+        charRoot.updateMatrixWorld();
+        jointDefs.forEach((j,i) => {
+          tmp.set(j.offset[0], j.offset[1], j.offset[2]);
+          j.group.localToWorld(tmp);
+          wpos[i].copy(tmp);
+          dotMeshes[i].position.setScalar(0);
+          dotMeshes[i].position.copy(tmp);
+          dotMeshes[i].scale.setScalar(boneRadius * 1.6);
+        });
+        boneConns.forEach(([a,b],i) => placeBone(boneMeshes[i], wpos[nameIdx[a]], wpos[nameIdx[b]]));
+      }
+
+      return {
+        setVisible(v) {
+          boneMeshes.forEach(m => { m.visible = v; });
+          dotMeshes.forEach(m => { m.visible = v; });
+        },
+        setColor(hex) {
+          boneHexColor = hex;
+          boneMeshes.forEach(m => m.material.color.set(hex));
+          dotMeshes.forEach(m => m.material.color.set(hex));
+        },
+        setRadius(r) {
+          boneRadius = r;
+        },
+        update,
+      };
+    })();
+
+    const PART_LABELS = {
+      torso:'軀幹', head:'頭部',
+      leftUpperArm:'左上臂', leftForearm:'左前臂',
+      rightUpperArm:'右上臂', rightForearm:'右前臂',
+      leftUpperLeg:'左大腿', leftLowerLeg:'左小腿',
+      rightUpperLeg:'右大腿', rightLowerLeg:'右小腿',
+    };
+
+    // ── Presets ───────────────────────────────────────────────
+    const DEG = Math.PI / 180;
+    const presets = {
+      stand: { torso:[0,0,0],head:[0,0,0], leftUpperArm:[0,0,-12],leftForearm:[0,0,0], rightUpperArm:[0,0,12],rightForearm:[0,0,0], leftUpperLeg:[0,0,5],leftLowerLeg:[0,0,0], rightUpperLeg:[0,0,-5],rightLowerLeg:[0,0,0] },
+      walk:  { torso:[5,0,0],head:[0,8,0], leftUpperArm:[38,0,-8],leftForearm:[-18,0,0], rightUpperArm:[-32,0,8],rightForearm:[14,0,0], leftUpperLeg:[-36,0,4],leftLowerLeg:[22,0,0], rightUpperLeg:[28,0,-4],rightLowerLeg:[0,0,0] },
+      run:   { torso:[10,0,0],head:[3,0,0], leftUpperArm:[62,0,-10],leftForearm:[-40,0,0], rightUpperArm:[-62,0,10],rightForearm:[35,0,0], leftUpperLeg:[-65,0,5],leftLowerLeg:[18,0,0], rightUpperLeg:[52,0,-5],rightLowerLeg:[68,0,0] },
+      sit:   { torso:[0,0,0],head:[0,0,0], leftUpperArm:[0,0,-16],leftForearm:[-22,0,0], rightUpperArm:[0,0,16],rightForearm:[-22,0,0], leftUpperLeg:[-88,0,6],leftLowerLeg:[90,0,0], rightUpperLeg:[-88,0,-6],rightLowerLeg:[90,0,0] },
+      jump:  { torso:[-8,0,0],head:[-4,0,0], leftUpperArm:[128,0,-28],leftForearm:[-25,0,0], rightUpperArm:[128,0,28],rightForearm:[-25,0,0], leftUpperLeg:[14,0,16],leftLowerLeg:[-38,0,0], rightUpperLeg:[14,0,-16],rightLowerLeg:[-38,0,0] },
+    };
+
+    function applyPreset(name) {
+      Object.entries(presets[name]).forEach(([p,[rx,ry,rz]]) => parts[p].rotation.set(rx*DEG,ry*DEG,rz*DEG));
+      syncSliders();
+    }
+
+    // ── Select part ───────────────────────────────────────────
+    function selectPart(name) {
+      currentPart = name;
+      document.querySelectorAll('.btn-part').forEach(b => b.classList.toggle('active', b.dataset.part === name));
+      const lbl = PART_LABELS[name] || name;
+      document.getElementById('active-part-label').textContent = lbl;
+      document.getElementById('part-color-label').textContent = lbl;
+      document.getElementById('part-color').value = partColors[name] || '#5d55ee';
+      syncSliders();
+      refreshMaterials(name);
+    }
+
+    function syncSliders() {
+      const g = parts[currentPart];
+      ['x','y','z'].forEach(ax => {
+        const v = Math.round(g.rotation[ax] / DEG);
+        document.getElementById('rot-'+ax).value = v;
+        document.getElementById('rot-'+ax+'-val').textContent = v+'°';
+      });
+    }
+
+    // ── UI wiring ─────────────────────────────────────────────
+    document.querySelectorAll('.btn-part').forEach(b => b.addEventListener('click', () => selectPart(b.dataset.part)));
+
+    document.querySelectorAll('.btn-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-preset').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        applyPreset(btn.dataset.preset);
+      });
+    });
+
+    ['x','y','z'].forEach(ax => {
+      const sl = document.getElementById('rot-'+ax), vl = document.getElementById('rot-'+ax+'-val');
+      sl.addEventListener('input', () => { parts[currentPart].rotation[ax] = parseInt(sl.value,10)*DEG; vl.textContent = sl.value+'°'; });
+    });
+
+    document.querySelectorAll('.btn-reset-axis').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ax = btn.dataset.axis;
+        parts[currentPart].rotation[ax] = 0;
+        document.getElementById('rot-'+ax).value = 0;
+        document.getElementById('rot-'+ax+'-val').textContent = '0°';
+      });
+    });
+
+    document.getElementById('reset-part-btn').addEventListener('click', () => { parts[currentPart].rotation.set(0,0,0); syncSliders(); });
+
+    // Part color
+    document.getElementById('part-color').addEventListener('input', function() { partColors[currentPart]=this.value; refreshMaterials(currentPart); });
+    document.getElementById('reset-colors-btn').addEventListener('click', () => { Object.assign(partColors,DEFAULT_COLORS); document.getElementById('part-color').value=partColors[currentPart]; refreshMaterials(currentPart); });
+
+    // Render style
+    document.querySelectorAll('.btn-style').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-style').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentStyle = btn.dataset.style;
+        scene.fog = (currentStyle === 'wire' || currentStyle === 'skeleton') ? null : new THREE.Fog(0x0d0d1c, 14, 28);
+        document.getElementById('skeleton-options').style.display = currentStyle === 'skeleton' ? '' : 'none';
+        refreshMaterials(currentPart);
+      });
+    });
+
+    // Skeleton color & thickness
+    document.getElementById('bone-color').addEventListener('input', function() { skeletonOverlay.setColor(this.value); });
+    document.getElementById('bone-thickness').addEventListener('input', function() {
+      const v = parseInt(this.value, 10);
+      document.getElementById('bone-thickness-val').textContent = v;
+      skeletonOverlay.setRadius(v * 0.003);
+    });
+
+    // Light controls
+    document.getElementById('light-ambient').addEventListener('input', function() { ambientLight.intensity=parseInt(this.value)/100; document.getElementById('light-ambient-val').textContent=this.value+'%'; });
+    document.getElementById('light-sun').addEventListener('input', function() { sunLight.intensity=parseInt(this.value)/100; document.getElementById('light-sun-val').textContent=this.value+'%'; });
+    ['light-azimuth','light-elevation'].forEach(id => {
+      document.getElementById(id).addEventListener('input', function() { document.getElementById(id+'-val').textContent=this.value+'°'; updateSunPosition(); });
+    });
+
+    // Scale
+    document.getElementById('char-scale').addEventListener('input', function() { const s=parseInt(this.value,10)/100; charRoot.scale.set(s,s,s); document.getElementById('char-scale-val').textContent=this.value+'%'; });
+
+    // Auto rotate
+    document.getElementById('auto-rotate').addEventListener('change', function() { controls.autoRotate=this.checked; });
+
+    // Pose JSON
+    function getPoseJSON() {
+      const p = {};
+      Object.entries(parts).forEach(([n,g]) => { p[n]=[Math.round(g.rotation.x/DEG),Math.round(g.rotation.y/DEG),Math.round(g.rotation.z/DEG)]; });
+      return JSON.stringify({format:'3d-char-pose',version:1,parts:p}, null, 2);
+    }
+    function applyPoseJSON(str) {
+      try { const d=JSON.parse(str), pose=d.parts||d; Object.entries(pose).forEach(([n,a]) => { if(parts[n]&&Array.isArray(a)) parts[n].rotation.set(a[0]*DEG,a[1]*DEG,a[2]*DEG); }); syncSliders(); }
+      catch(e) { alert('JSON 格式錯誤：'+e.message); }
+    }
+    const pTA=document.getElementById('pose-json'), pActs=document.getElementById('pose-json-actions');
+    document.getElementById('export-pose-btn').addEventListener('click', () => { pTA.value=getPoseJSON(); pTA.style.display='block'; pActs.style.display='flex'; });
+    document.getElementById('import-pose-btn').addEventListener('click', () => { pTA.value=''; pTA.placeholder='在此貼上姿勢 JSON...'; pTA.style.display='block'; pActs.style.display='flex'; });
+    document.getElementById('apply-pose-btn').addEventListener('click', () => { applyPoseJSON(pTA.value); pTA.style.display='none'; pActs.style.display='none'; });
+    document.getElementById('close-pose-btn').addEventListener('click', () => { pTA.style.display='none'; pActs.style.display='none'; });
+
+    // Reference image
+    let refTexture=null, refPlane=null, refMode='overlay';
+    document.getElementById('ref-img-input').addEventListener('change', function(e) {
+      const file=e.target.files[0]; if(!file) return;
+      const url=URL.createObjectURL(file);
+      document.getElementById('ref-overlay').src=url;
+      document.getElementById('remove-ref-btn').style.display='';
+      document.getElementById('ref-mode-row').style.display='flex';
+      if(refTexture){refTexture.dispose();refTexture=null;}
+      refTexture=new THREE.TextureLoader().load(url);
+      refMode=document.querySelector('[name="ref-mode"]:checked').value;
+      applyRefMode();
+    });
+    document.getElementById('remove-ref-btn').addEventListener('click', () => {
+      const ov=document.getElementById('ref-overlay'); ov.style.display='none'; ov.src='';
+      document.getElementById('remove-ref-btn').style.display='none';
+      document.getElementById('ref-mode-row').style.display='none';
+      if(refPlane){scene.remove(refPlane);refPlane.geometry.dispose();refPlane.material.dispose();refPlane=null;}
+      if(refTexture){refTexture.dispose();refTexture=null;}
+    });
+    document.querySelectorAll('[name="ref-mode"]').forEach(r => r.addEventListener('change', function(){refMode=this.value;applyRefMode();}));
+    function applyRefMode() {
+      const ov=document.getElementById('ref-overlay');
+      if(refMode==='overlay'){ov.style.display='block';if(refPlane){scene.remove(refPlane);refPlane=null;}}
+      else { ov.style.display='none'; if(refTexture&&!refPlane){ refPlane=new THREE.Mesh(new THREE.PlaneGeometry(4,4),new THREE.MeshBasicMaterial({map:refTexture,side:THREE.DoubleSide,transparent:true,opacity:0.72})); refPlane.position.set(0,2,-2); scene.add(refPlane); } }
+    }
+
+    // Export PNG
+    document.getElementById('export-btn').addEventListener('click', () => { renderer.render(scene,camera); const a=document.createElement('a'); a.href=renderer.domElement.toDataURL('image/png'); a.download='3d-character-pose.png'; a.click(); });
+
+    // ── Raycasting: click to select ───────────────────────────
+    const raycaster=new THREE.Raycaster(), mouse=new THREE.Vector2();
+    let pdPos={x:0,y:0};
+    renderer.domElement.addEventListener('pointerdown', e=>{pdPos={x:e.clientX,y:e.clientY};});
+    renderer.domElement.addEventListener('pointerup', e=>{
+      const dx=e.clientX-pdPos.x, dy=e.clientY-pdPos.y;
+      if(Math.sqrt(dx*dx+dy*dy)>6) return;
+      const rect=container.getBoundingClientRect();
+      mouse.x=((e.clientX-rect.left)/rect.width)*2-1;
+      mouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+      raycaster.setFromCamera(mouse,camera);
+      const meshes=[]; scene.traverse(o=>{if(o.isMesh&&o.userData.partName&&o.userData.meshRole!=='eye')meshes.push(o);});
+      const hits=raycaster.intersectObjects(meshes,false);
+      if(hits.length>0) selectPart(hits[0].object.userData.partName);
+    });
+
+    // ── Resize ────────────────────────────────────────────────
+    function onResize() {
+      const w=container.clientWidth, h=container.clientHeight;
+      if(!w||!h) return;
+      renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', onResize);
+    if(window.ResizeObserver) new ResizeObserver(onResize).observe(container);
+
+    // ── Animate ───────────────────────────────────────────────
+    (function animate(){requestAnimationFrame(animate);controls.update();skeletonOverlay.update();renderer.render(scene,camera);})();
+
+    // ── Init ──────────────────────────────────────────────────
+    refreshMaterials(currentPart);
+    applyPreset('stand');
+    setTimeout(onResize, 80);
+
+  })();
+  </script>
+
+</body>
+</html>

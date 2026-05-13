@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Instagram 影片下載工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Instagram 下載</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📸</div>
+      <div>
+        <h1>Instagram 影片下載工具</h1>
+        <p>輸入 Instagram 貼文或 Reels 網址，取得下載選項。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 輸入 Instagram 網址</div>
+      <div class="input-row">
+        <input type="text" id="url-input" class="url-input"
+          placeholder="https://www.instagram.com/p/XXXXXXX/ 或 /reel/XXXXXXX/"
+          autocomplete="off" spellcheck="false" />
+        <button class="btn btn-primary" id="btn-fetch">取得下載連結</button>
+      </div>
+      <div id="error-msg" class="error-msg hidden"></div>
+      <div class="note-msg">支援：instagram.com/p/…、/reel/…、/tv/…</div>
+    </div>
+
+    <div class="card hidden" id="result-card">
+      <div class="card-title">② 下載選項</div>
+
+      <div style="margin-bottom:1.25rem">
+        <div class="badge" id="post-type-badge">—</div>
+        <div style="font-size:.85rem;color:var(--text-muted);margin-top:.4rem;word-break:break-all" id="canonical-url">—</div>
+        <div class="info-btns" style="margin-top:.75rem">
+          <button class="btn btn-primary" id="btn-copy-url">📋 複製網址（貼入下方服務）</button>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-bottom:.75rem">推薦下載服務（點擊前往）</div>
+      <div class="dl-service-list" id="dl-links"></div>
+    </div>
+  </main>
+
+  <script>
+    const urlInput   = document.getElementById('url-input');
+    const btnFetch   = document.getElementById('btn-fetch');
+    const errorMsg   = document.getElementById('error-msg');
+    const resultCard = document.getElementById('result-card');
+    const postBadge  = document.getElementById('post-type-badge');
+    const canonUrl   = document.getElementById('canonical-url');
+    const btnCopy    = document.getElementById('btn-copy-url');
+    const dlLinks    = document.getElementById('dl-links');
+    const toast      = document.getElementById('copy-toast');
+    let toastTimer;
+
+    function showToast(msg) {
+      toast.textContent = msg; toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    const SERVICES = [
+      { name: 'SnapInsta',          url: c => `https://snapinsta.app/` },
+      { name: 'SSS Instagram',      url: c => `https://sssinstagram.com/` },
+      { name: 'SaveFrom.net',       url: c => `https://savefrom.net/#url=${encodeURIComponent(c)}` },
+      { name: 'DownloadGram',       url: c => `https://downloadgram.org/` },
+      { name: 'yt-dlp（命令列）',   url: c => `https://github.com/yt-dlp/yt-dlp`, cmd: c => `yt-dlp "${c}"` },
+    ];
+
+    function parseIG(raw) {
+      const m = raw.match(/instagram\.com\/(p|reel|tv)\/([A-Za-z0-9_-]+)/);
+      if (!m) return null;
+      return { type: m[1], canonical: `https://www.instagram.com/${m[1]}/${m[2]}/` };
+    }
+
+    function buildLinks(canonical) {
+      dlLinks.innerHTML = '';
+      SERVICES.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'dl-service-row';
+        const a = document.createElement('a');
+        a.className = 'btn btn-ghost';
+        a.href = s.url(canonical); a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = `🔗 ${s.name} ↗`;
+        row.appendChild(a);
+        if (s.cmd) {
+          const code = document.createElement('code');
+          const cmd = s.cmd(canonical);
+          code.textContent = cmd;
+          code.title = '點擊複製指令';
+          code.addEventListener('click', () => navigator.clipboard.writeText(cmd).then(() => showToast('已複製指令！')));
+          row.appendChild(code);
+        }
+        dlLinks.appendChild(row);
+      });
+    }
+
+    function doFetch() {
+      const raw = urlInput.value.trim();
+      if (!raw) return;
+      const parsed = parseIG(raw);
+      if (!parsed) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = '⚠️ 無法辨識網址，請確認為 Instagram 貼文或 Reels 連結（需包含 /p/、/reel/ 或 /tv/）。';
+        resultCard.classList.add('hidden'); return;
+      }
+      errorMsg.classList.add('hidden');
+      const typeMap = { p: '一般貼文', reel: 'Reels 短影片', tv: 'IGTV' };
+      postBadge.textContent = typeMap[parsed.type] || parsed.type;
+      canonUrl.textContent = parsed.canonical;
+      btnCopy.onclick = () => navigator.clipboard.writeText(parsed.canonical).then(() => showToast('已複製！'));
+      buildLinks(parsed.canonical);
+      resultCard.classList.remove('hidden');
+    }
+
+    btnFetch.addEventListener('click', doFetch);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+    urlInput.addEventListener('paste', () => setTimeout(doFetch, 50));
+  </script>
+</body>
+</html>

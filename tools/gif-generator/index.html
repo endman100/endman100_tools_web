@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GIF 產生器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .frames-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.75rem;margin-top:1rem}
+    .frame-thumb{position:relative;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--border);background:var(--bg-secondary);cursor:pointer;aspect-ratio:1}
+    .frame-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+    .frame-thumb .del-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:.75rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+    .add-zone{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:2rem;text-align:center;cursor:pointer;transition:var(--transition);aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.4rem}
+    .add-zone:hover{border-color:var(--accent);background:rgba(108,99,255,.05)}
+    .setting-row{display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem}
+    .setting-row label{font-size:.9rem;color:var(--text-secondary);min-width:4rem}
+    input[type=number].num-input{background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.45rem .75rem;font-size:.9rem;width:6rem;outline:none}
+    input[type=number].num-input:focus{border-color:var(--accent)}
+    #preview-img{max-width:100%;border-radius:var(--radius-sm);border:1px solid var(--border);display:block;margin-top:1rem}
+    .progress-wrap{height:6px;background:var(--bg-secondary);border-radius:3px;overflow:hidden;margin-top:1rem}
+    .progress-bar{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-light));border-radius:3px;transition:width .2s;width:0%}
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">GIF 產生器</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🖼️</div>
+      <div>
+        <h1>GIF 動圖產生器</h1>
+        <p>上傳多張圖片，設定每幀延遲與尺寸，產生 GIF 動圖並下載。完全離線處理。</p>
+      </div>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="card">
+      <div class="card-title">① 新增圖片幀</div>
+      <div class="frames-grid" id="frames-grid">
+        <div class="add-zone" id="add-zone" onclick="document.getElementById('frame-input').click()">
+          <span style="font-size:1.8rem">＋</span>
+          <span style="font-size:.82rem;color:var(--text-muted)">新增圖片</span>
+        </div>
+      </div>
+      <input type="file" id="frame-input" accept="image/*" multiple style="display:none" />
+      <div style="margin-top:1rem;font-size:.82rem;color:var(--text-muted)">支援 PNG、JPEG、WebP、GIF（取第一幀）。拖曳可重排順序。</div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="card hidden" id="settings-card">
+      <div class="card-title">② 設定參數</div>
+      <div class="setting-row">
+        <label>幀延遲</label>
+        <input type="number" id="delay-input" class="num-input" value="100" min="10" max="5000" step="10" />
+        <span style="font-size:.85rem;color:var(--text-muted)">毫秒（100ms = 10fps）</span>
+      </div>
+      <div class="setting-row">
+        <label>寬度</label>
+        <input type="number" id="width-input" class="num-input" value="480" min="16" max="1920" />
+        <span style="font-size:.85rem;color:var(--text-muted)">px（等比縮放高度）</span>
+      </div>
+      <div class="setting-row">
+        <label>循環</label>
+        <select id="loop-select" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.45rem .75rem;font-size:.9rem;outline:none">
+          <option value="0">永久循環</option>
+          <option value="1">播放一次</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="btn-generate">🎬 產生 GIF</button>
+      <div class="progress-wrap hidden" id="progress-wrap" style="margin-top:1rem">
+        <div class="progress-bar" id="progress-bar"></div>
+      </div>
+      <div class="error-msg hidden" id="gen-error"></div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="card hidden" id="result-card">
+      <div class="card-title">③ 預覽與下載</div>
+      <img id="preview-img" src="" alt="GIF 預覽" />
+      <div style="margin-top:1rem;display:flex;gap:.75rem;flex-wrap:wrap">
+        <a class="btn btn-success" id="btn-dl" href="#" download="animated.gif">⬇ 下載 GIF</a>
+        <span id="size-info" style="font-size:.85rem;color:var(--text-muted);align-self:center"></span>
+      </div>
+    </div>
+  </main>
+
+  <!-- gif.js worker inline via blob -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+  <script>
+    const framesGrid   = document.getElementById('frames-grid');
+    const addZone      = document.getElementById('add-zone');
+    const frameInput   = document.getElementById('frame-input');
+    const settingsCard = document.getElementById('settings-card');
+    const btnGenerate  = document.getElementById('btn-generate');
+    const progressWrap = document.getElementById('progress-wrap');
+    const progressBar  = document.getElementById('progress-bar');
+    const resultCard   = document.getElementById('result-card');
+    const previewImg   = document.getElementById('preview-img');
+    const btnDl        = document.getElementById('btn-dl');
+    const sizeInfo     = document.getElementById('size-info');
+    const genError     = document.getElementById('gen-error');
+
+    let frames = []; // { img: HTMLImageElement, src: string }
+
+    frameInput.addEventListener('change', () => { addImages(frameInput.files); frameInput.value = ''; });
+
+    // Drag-over on drop zone
+    addZone.addEventListener('dragover', e => { e.preventDefault(); addZone.style.borderColor = 'var(--accent)'; });
+    addZone.addEventListener('dragleave', () => { addZone.style.borderColor = 'var(--border)'; });
+    addZone.addEventListener('drop', e => { e.preventDefault(); addZone.style.borderColor = 'var(--border)'; addImages(e.dataTransfer.files); });
+
+    function addImages(files) {
+      Array.from(files).forEach(f => {
+        if (!f.type.startsWith('image/')) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => { frames.push({ img, src: e.target.result }); renderGrid(); };
+        };
+        reader.readAsDataURL(f);
+      });
+    }
+
+    function renderGrid() {
+      framesGrid.innerHTML = '';
+      frames.forEach((f, i) => {
+        const div = document.createElement('div');
+        div.className = 'frame-thumb';
+        div.setAttribute('draggable', 'true');
+        div.dataset.idx = i;
+        const img = document.createElement('img');
+        img.src = f.src;
+        const del = document.createElement('button');
+        del.className = 'del-btn'; del.textContent = '×';
+        del.onclick = ev => { ev.stopPropagation(); frames.splice(i, 1); renderGrid(); };
+        div.appendChild(img); div.appendChild(del);
+        // Drag reorder
+        div.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', i); });
+        div.addEventListener('dragover', e => { e.preventDefault(); });
+        div.addEventListener('drop', e => { e.preventDefault(); const from = parseInt(e.dataTransfer.getData('text/plain')); if (from === i) return; const moved = frames.splice(from, 1)[0]; frames.splice(i, 0, moved); renderGrid(); });
+        framesGrid.appendChild(div);
+      });
+      const az = document.createElement('div');
+      az.className = 'add-zone'; az.innerHTML = '<span style="font-size:1.8rem">＋</span><span style="font-size:.82rem;color:var(--text-muted)">新增圖片</span>';
+      az.onclick = () => frameInput.click();
+      az.addEventListener('dragover', e => { e.preventDefault(); az.style.borderColor = 'var(--accent)'; });
+      az.addEventListener('dragleave', () => { az.style.borderColor = 'var(--border)'; });
+      az.addEventListener('drop', e => { e.preventDefault(); az.style.borderColor = 'var(--border)'; addImages(e.dataTransfer.files); });
+      framesGrid.appendChild(az);
+      settingsCard.classList.toggle('hidden', frames.length === 0);
+    }
+
+    btnGenerate.addEventListener('click', () => {
+      if (frames.length < 2) { genError.classList.remove('hidden'); genError.textContent = '⚠️ 請至少新增 2 張圖片。'; return; }
+      genError.classList.add('hidden');
+      resultCard.classList.add('hidden');
+      btnGenerate.disabled = true; btnGenerate.textContent = '產生中…';
+      progressWrap.classList.remove('hidden'); progressBar.style.width = '0%';
+
+      const targetW = parseInt(document.getElementById('width-input').value) || 480;
+      const delay = parseInt(document.getElementById('delay-input').value) || 100;
+      const loop = parseInt(document.getElementById('loop-select').value);
+
+      const gif = new GIF({ workers: 2, quality: 10, workerScript: 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js', repeat: loop });
+
+      frames.forEach(f => {
+        const ratio = f.img.naturalHeight / f.img.naturalWidth;
+        const w = targetW, h = Math.round(targetW * ratio);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        const ctx = c.getContext('2d'); ctx.drawImage(f.img, 0, 0, w, h);
+        gif.addFrame(c, { delay });
+      });
+
+      gif.on('progress', p => { progressBar.style.width = Math.round(p * 100) + '%'; });
+      gif.on('finished', blob => {
+        const url = URL.createObjectURL(blob);
+        previewImg.src = url; btnDl.href = url;
+        sizeInfo.textContent = `檔案大小：${(blob.size / 1024).toFixed(1)} KB`;
+        resultCard.classList.remove('hidden');
+        progressWrap.classList.add('hidden');
+        btnGenerate.disabled = false; btnGenerate.textContent = '🎬 產生 GIF';
+      });
+      gif.render();
+    });
+  </script>
+</body>
+</html>

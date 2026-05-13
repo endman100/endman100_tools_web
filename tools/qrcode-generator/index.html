@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Code 產生器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">QR Code 產生器</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📱</div>
+      <div>
+        <h1>QR Code 產生器</h1>
+        <p>輸入任意文字或網址，即時生成 QR Code，可自訂尺寸與顏色，完全在瀏覽器本地處理</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Input -->
+    <div class="card">
+      <div class="card-title">① 輸入內容</div>
+      <div class="input-group">
+        <textarea
+          id="qr-input"
+          placeholder="輸入文字、網址（URL）、電話號碼或任何內容..."
+          rows="4"
+          spellcheck="false"
+        ></textarea>
+        <div class="char-count"><span id="char-count">0</span> 字元</div>
+      </div>
+
+      <div class="quick-templates">
+        <span class="template-label">快速範例：</span>
+        <button class="btn-template" data-value="https://example.com">🔗 網址</button>
+        <button class="btn-template" data-value="tel:+886912345678">📞 電話</button>
+        <button class="btn-template" data-value="mailto:hello@example.com">✉️ Email</button>
+        <button class="btn-template" data-value="WIFI:T:WPA;S:MyNetwork;P:password123;;">📶 Wi-Fi</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Settings -->
+    <div class="card">
+      <div class="card-title">② 外觀設定</div>
+      <div class="settings-grid">
+        <div class="setting-group">
+          <label for="qr-size">尺寸（px）</label>
+          <input type="range" id="qr-size" min="128" max="512" step="32" value="256" />
+          <span class="size-label" id="size-label">256 × 256</span>
+        </div>
+        <div class="setting-group">
+          <label for="qr-fg">前景色</label>
+          <div class="color-wrap">
+            <input type="color" id="qr-fg" value="#000000" />
+            <span class="color-hex" id="fg-hex">#000000</span>
+          </div>
+        </div>
+        <div class="setting-group">
+          <label for="qr-bg">背景色</label>
+          <div class="color-wrap">
+            <input type="color" id="qr-bg" value="#ffffff" />
+            <span class="color-hex" id="bg-hex">#ffffff</span>
+          </div>
+        </div>
+        <div class="setting-group">
+          <label for="qr-ecl">糾錯等級</label>
+          <select id="qr-ecl">
+            <option value="L">L（低 7%）</option>
+            <option value="M" selected>M（中 15%）</option>
+            <option value="Q">Q（標準 25%）</option>
+            <option value="H">H（高 30%）✦ 建議搭配 Logo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Logo -->
+    <div class="card">
+      <div class="card-title">③ Logo 嵌入（選填）</div>
+      <div class="logo-upload-row">
+        <div class="logo-drop-zone" id="logo-drop-zone">
+          <input type="file" id="logo-input" accept="image/*" />
+          <span class="logo-drop-icon">🖼️</span>
+          <p>點擊或拖曳上傳 Logo</p>
+          <p class="logo-hint">PNG / SVG / JPG 皆可，建議使用正方形圖片</p>
+        </div>
+        <div class="logo-preview-col" id="logo-preview-col" style="display:none">
+          <img id="logo-thumb" alt="logo preview" />
+          <div class="logo-controls">
+            <div class="setting-group">
+              <label for="logo-size-pct">大小 <span id="logo-pct-label">25%</span></label>
+              <input type="range" id="logo-size-pct" min="10" max="40" step="5" value="25" />
+            </div>
+            <div class="setting-group">
+              <label for="logo-padding">白邊</label>
+              <input type="range" id="logo-padding" min="0" max="20" step="2" value="6" />
+              <span class="size-label" id="logo-pad-label">6px</span>
+            </div>
+          </div>
+          <button class="btn btn-ghost logo-clear-btn" id="logo-clear-btn">✕ 移除 Logo</button>
+        </div>
+      </div>
+      <p class="logo-tip" id="logo-tip" style="display:none">
+        💡 嵌入 Logo 時建議將糾錯等級設為 <strong>H</strong>，以確保 QR Code 仍可正確掃描。
+      </p>
+    </div>
+
+    <!-- Step 4: Result -->
+    <div class="card" id="result-card">
+      <div class="card-title">④ QR Code 預覽</div>
+
+      <div class="qr-preview-wrap">
+        <div id="qr-container">
+          <div class="qr-placeholder">
+            <span class="placeholder-icon">📱</span>
+            <p>在上方輸入內容後自動產生</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-row" id="action-row" style="display:none">
+        <button class="btn btn-success" id="download-btn">⬇ 下載 PNG</button>
+        <button class="btn btn-ghost" id="copy-btn">📋 複製圖片</button>
+        <button class="btn btn-ghost" id="reset-btn">↺ 清除</button>
+      </div>
+
+      <div class="copy-toast" id="copy-toast">已複製到剪貼簿！</div>
+    </div>
+
+  </main>
+
+  <script>
+    const inputEl    = document.getElementById('qr-input');
+    const sizeEl     = document.getElementById('qr-size');
+    const sizeLabel  = document.getElementById('size-label');
+    const fgEl       = document.getElementById('qr-fg');
+    const bgEl       = document.getElementById('qr-bg');
+    const eclEl      = document.getElementById('qr-ecl');
+    const container  = document.getElementById('qr-container');
+    const actionRow  = document.getElementById('action-row');
+    const charCount  = document.getElementById('char-count');
+    const fgHex      = document.getElementById('fg-hex');
+    const bgHex      = document.getElementById('bg-hex');
+
+    // Logo
+    const logoInput    = document.getElementById('logo-input');
+    const logoDropZone = document.getElementById('logo-drop-zone');
+    const logoPreviewCol = document.getElementById('logo-preview-col');
+    const logoThumb    = document.getElementById('logo-thumb');
+    const logoClearBtn = document.getElementById('logo-clear-btn');
+    const logoPctEl    = document.getElementById('logo-size-pct');
+    const logoPctLabel = document.getElementById('logo-pct-label');
+    const logoPadEl    = document.getElementById('logo-padding');
+    const logoPadLabel = document.getElementById('logo-pad-label');
+    const logoTip      = document.getElementById('logo-tip');
+
+    let logoImage     = null; // HTMLImageElement
+    let debounceTimer = null;
+
+    // ---- helpers ----
+    function updateSizeLabel() {
+      sizeLabel.textContent = `${sizeEl.value} × ${sizeEl.value}`;
+    }
+
+    function showActions(show) {
+      actionRow.style.display = show ? 'flex' : 'none';
+    }
+
+    function clearContainer() {
+      container.innerHTML = '';
+    }
+
+    function renderPlaceholder() {
+      container.innerHTML = `
+        <div class="qr-placeholder">
+          <span class="placeholder-icon">📱</span>
+          <p>在上方輸入內容後自動產生</p>
+        </div>`;
+      showActions(false);
+    }
+
+    function overlayLogo(canvas) {
+      if (!logoImage) return;
+      const ctx = canvas.getContext('2d');
+      const qrSize  = canvas.width;
+      const pct     = parseInt(logoPctEl.value, 10) / 100;
+      const pad     = parseInt(logoPadEl.value, 10);
+      const logoSize = Math.round(qrSize * pct);
+
+      // White padded background
+      const boxSize = logoSize + pad * 2;
+      const x = (qrSize - boxSize) / 2;
+      const y = (qrSize - boxSize) / 2;
+
+      ctx.fillStyle = bgEl.value;
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxSize, boxSize, 8);
+      ctx.fill();
+
+      // Draw logo centred
+      ctx.drawImage(logoImage, x + pad, y + pad, logoSize, logoSize);
+    }
+
+    function generate() {
+      const text = inputEl.value.trim();
+      charCount.textContent = inputEl.value.length;
+
+      if (!text) { renderPlaceholder(); return; }
+
+      const size = parseInt(sizeEl.value, 10);
+      clearContainer();
+
+      try {
+        new QRCode(container, {
+          text,
+          width: size,
+          height: size,
+          colorDark: fgEl.value,
+          colorLight: bgEl.value,
+          correctLevel: QRCode.CorrectLevel[eclEl.value],
+        });
+
+        // qrcodejs renders synchronously then sets img src async;
+        // wait one tick so canvas is ready
+        setTimeout(() => {
+          const canvas = container.querySelector('canvas');
+          if (canvas) overlayLogo(canvas);
+          showActions(true);
+        }, 50);
+      } catch {
+        container.innerHTML = `<p class="qr-error">內容過長或無法編碼，請縮短文字後重試。</p>`;
+        showActions(false);
+      }
+    }
+
+    function scheduleGenerate() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(generate, 300);
+    }
+
+    // ---- logo loading ----
+    function loadLogoFile(file) {
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          logoImage = img;
+          logoThumb.src = e.target.result;
+          logoDropZone.style.display = 'none';
+          logoPreviewCol.style.display = 'flex';
+          logoTip.style.display = 'block';
+          scheduleGenerate();
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    logoInput.addEventListener('change', () => loadLogoFile(logoInput.files[0]));
+
+    logoDropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      logoDropZone.classList.add('dragover');
+    });
+    logoDropZone.addEventListener('dragleave', () => logoDropZone.classList.remove('dragover'));
+    logoDropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      logoDropZone.classList.remove('dragover');
+      loadLogoFile(e.dataTransfer.files[0]);
+    });
+
+    logoClearBtn.addEventListener('click', () => {
+      logoImage = null;
+      logoInput.value = '';
+      logoThumb.src = '';
+      logoDropZone.style.display = '';
+      logoPreviewCol.style.display = 'none';
+      logoTip.style.display = 'none';
+      scheduleGenerate();
+    });
+
+    logoPctEl.addEventListener('input', () => {
+      logoPctLabel.textContent = `${logoPctEl.value}%`;
+      scheduleGenerate();
+    });
+
+    logoPadEl.addEventListener('input', () => {
+      logoPadLabel.textContent = `${logoPadEl.value}px`;
+      scheduleGenerate();
+    });
+
+    // ---- main events ----
+    inputEl.addEventListener('input', scheduleGenerate);
+    sizeEl.addEventListener('input',  () => { updateSizeLabel(); scheduleGenerate(); });
+    fgEl.addEventListener('input',    () => { fgHex.textContent = fgEl.value; scheduleGenerate(); });
+    bgEl.addEventListener('input',    () => { bgHex.textContent = bgEl.value; scheduleGenerate(); });
+    eclEl.addEventListener('change',  scheduleGenerate);
+
+    document.querySelectorAll('.btn-template').forEach(btn => {
+      btn.addEventListener('click', () => { inputEl.value = btn.dataset.value; scheduleGenerate(); });
+    });
+
+    // Download — export the composited canvas
+    document.getElementById('download-btn').addEventListener('click', () => {
+      const canvas = container.querySelector('canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = 'qrcode.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // Copy image
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const canvas = container.querySelector('canvas');
+      if (!canvas) return;
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          const toast = document.getElementById('copy-toast');
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 2000);
+        } catch {
+          document.getElementById('download-btn').click();
+        }
+      });
+    });
+
+    // Reset
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      inputEl.value = '';
+      charCount.textContent = '0';
+      renderPlaceholder();
+    });
+
+    // Init
+    updateSizeLabel();
+  </script>
+</body>
+</html>

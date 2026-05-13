@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bilibili 影片下載工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Bilibili 下載</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📺</div>
+      <div>
+        <h1>Bilibili 影片下載工具</h1>
+        <p>輸入 Bilibili 影片網址，擷取影片資訊與封面，並提供下載連結選項。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 輸入 Bilibili 影片網址</div>
+      <div class="input-row">
+        <input type="text" id="url-input" class="url-input"
+          placeholder="https://www.bilibili.com/video/BV1xx411c7mD 或 BV1xx411c7mD"
+          autocomplete="off" spellcheck="false" />
+        <button class="btn btn-primary" id="btn-fetch">擷取資訊</button>
+      </div>
+      <div id="error-msg" class="error-msg hidden"></div>
+      <div class="note-msg">支援：bilibili.com/video/BVxxxx、b23.tv 短網址、或直接輸入 BV / av 號</div>
+    </div>
+
+    <div class="card hidden" id="result-card">
+      <div class="card-title">② 影片資訊</div>
+      <div class="result-box">
+        <div class="thumb-preview">
+          <img id="cover-img" src="" alt="封面" />
+          <div class="thumb-preview-info">
+            <div class="badge" id="bvid-badge">—</div>
+            <div class="info-title" id="video-title">—</div>
+            <div class="info-sub" id="video-meta">—</div>
+            <div class="info-btns">
+              <a class="btn btn-ghost" id="btn-open" href="#" target="_blank" rel="noopener">在 Bilibili 開啟 ↗</a>
+              <button class="btn btn-ghost" id="btn-copy-bvid">複製 BV 號</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-banner" style="margin-top:1.25rem">
+        <span class="bi">💡</span>
+        <p>
+          Bilibili 影片串流需要登入憑證，瀏覽器端無法直接取得下載連結。<br>
+          推薦使用以下工具下載：
+          <a href="https://github.com/nilaoda/BBDown" target="_blank" rel="noopener">BBDown（命令列）</a>、
+          <a href="https://github.com/iawia002/lux" target="_blank" rel="noopener">lux</a>，
+          或登入 Bilibili 後使用官方 App 下載功能。
+        </p>
+      </div>
+
+      <div style="margin-top:.75rem">
+        <div class="card-title" style="margin-bottom:.75rem">快速指令</div>
+        <div class="dl-service-list" id="cmd-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const urlInput   = document.getElementById('url-input');
+    const btnFetch   = document.getElementById('btn-fetch');
+    const errorMsg   = document.getElementById('error-msg');
+    const resultCard = document.getElementById('result-card');
+    const coverImg   = document.getElementById('cover-img');
+    const bvBadge    = document.getElementById('bvid-badge');
+    const videoTitle = document.getElementById('video-title');
+    const videoMeta  = document.getElementById('video-meta');
+    const btnOpen    = document.getElementById('btn-open');
+    const btnCopyBv  = document.getElementById('btn-copy-bvid');
+    const cmdList    = document.getElementById('cmd-list');
+    const toast      = document.getElementById('copy-toast');
+    let toastTimer;
+
+    function showToast(msg) {
+      toast.textContent = msg; toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function extractId(raw) {
+      const bv = raw.match(/BV[A-Za-z0-9]{10}/);
+      if (bv) return { type: 'bvid', id: bv[0] };
+      const av = raw.match(/av(\d+)/i);
+      if (av) return { type: 'aid', id: av[1] };
+      if (/^BV[A-Za-z0-9]{10}$/.test(raw.trim())) return { type: 'bvid', id: raw.trim() };
+      if (/^\d+$/.test(raw.trim())) return { type: 'aid', id: raw.trim() };
+      return null;
+    }
+
+    function formatDuration(s) {
+      if (!s) return '—';
+      const m = Math.floor(s / 60), ss = s % 60;
+      return `${m}:${String(ss).padStart(2, '0')}`;
+    }
+
+    function addCmd(label, cmd) {
+      const row = document.createElement('div');
+      row.className = 'dl-service-row';
+      const lb = document.createElement('span');
+      lb.style.cssText = 'font-size:.82rem;color:var(--text-muted);min-width:5rem;flex-shrink:0';
+      lb.textContent = label;
+      const code = document.createElement('code');
+      code.textContent = cmd;
+      code.title = '點擊複製';
+      code.addEventListener('click', () => navigator.clipboard.writeText(cmd).then(() => showToast('已複製指令！')));
+      row.appendChild(lb); row.appendChild(code);
+      cmdList.appendChild(row);
+    }
+
+    async function doFetch() {
+      const raw = urlInput.value.trim();
+      if (!raw) return;
+      const vid = extractId(raw);
+      if (!vid) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = '⚠️ 無法辨識影片 ID，請確認網址中包含 BV 或 av 編號。';
+        resultCard.classList.add('hidden'); return;
+      }
+      errorMsg.classList.add('hidden');
+      resultCard.classList.add('hidden');
+      btnFetch.disabled = true; btnFetch.textContent = '擷取中…';
+
+      try {
+        const param = vid.type === 'bvid' ? `bvid=${vid.id}` : `aid=${vid.id}`;
+        const res = await fetch(`https://api.bilibili.com/x/web-interface/view?${param}`, { credentials: 'omit' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (json.code !== 0) throw new Error(json.message || '影片不存在或無法存取');
+
+        const d = json.data;
+        const bvid = d.bvid;
+        const pic  = (d.pic || '').replace('http://', 'https://');
+
+        coverImg.src = pic;
+        bvBadge.textContent = bvid;
+        videoTitle.textContent = d.title || '（無標題）';
+        videoMeta.textContent = `UP主：${d.owner?.name || '—'}  ·  時長：${formatDuration(d.duration)}  ·  觀看數：${(d.stat?.view || 0).toLocaleString()}`;
+        btnOpen.href = `https://www.bilibili.com/video/${bvid}`;
+        btnCopyBv.onclick = () => navigator.clipboard.writeText(bvid).then(() => showToast('已複製！'));
+
+        cmdList.innerHTML = '';
+        addCmd('BBDown', `BBDown "${bvid}"`);
+        addCmd('yt-dlp', `yt-dlp "https://www.bilibili.com/video/${bvid}"`);
+
+        resultCard.classList.remove('hidden');
+      } catch (err) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = `⚠️ ${err.message}`;
+      } finally {
+        btnFetch.disabled = false; btnFetch.textContent = '擷取資訊';
+      }
+    }
+
+    btnFetch.addEventListener('click', doFetch);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+    urlInput.addEventListener('paste', () => setTimeout(doFetch, 50));
+  </script>
+</body>
+</html>

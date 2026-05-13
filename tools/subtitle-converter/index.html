@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>字幕格式轉換器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+  <style>
+    .tab-bar{display:flex;gap:.5rem;margin-bottom:1.5rem;flex-wrap:wrap}
+    .tab-btn{padding:.5rem 1.1rem;border-radius:var(--radius-sm);border:1px solid var(--border);background:transparent;color:var(--text-secondary);font-size:.9rem;font-weight:600;cursor:pointer;font-family:var(--font);transition:var(--transition)}
+    .tab-btn.active,.tab-btn:hover{background:rgba(108,99,255,.12);color:var(--text-primary);border-color:var(--border-hover)}
+    .tab-btn.active{background:linear-gradient(135deg,rgba(108,99,255,.2),rgba(139,131,255,.2));color:var(--accent-light);border-color:var(--accent)}
+    .io-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem}
+    @media(max-width:640px){.io-grid{grid-template-columns:1fr}}
+    .io-box{display:flex;flex-direction:column;gap:.5rem}
+    .io-box label{font-size:.85rem;color:var(--text-muted)}
+    textarea.sub-area{flex:1;width:100%;min-height:260px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.9rem;font-family:'Consolas','Fira Code',monospace;font-size:.82rem;resize:vertical;outline:none;line-height:1.6;transition:var(--transition)}
+    textarea.sub-area:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
+    .sub-actions{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.5rem}
+    .stat-info{font-size:.8rem;color:var(--text-muted);padding:.35rem 0}
+    .drop-zone-inline{border:2px dashed var(--border);border-radius:var(--radius-sm);padding:1.5rem;text-align:center;cursor:pointer;transition:var(--transition);font-size:.9rem;color:var(--text-secondary)}
+    .drop-zone-inline:hover{border-color:var(--accent);background:rgba(108,99,255,.05)}
+  </style>
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">字幕轉換器</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page" style="max-width:1000px">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📝</div>
+      <div>
+        <h1>字幕格式轉換器</h1>
+        <p>SRT ↔ VTT ↔ ASS 字幕格式互轉，純瀏覽器處理，不上傳任何資料。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 上傳或貼上字幕</div>
+      <div class="drop-zone-inline" id="drop-zone" onclick="document.getElementById('sub-file').click()">
+        🗂 點擊或拖曳字幕檔案（.srt / .vtt / .ass / .ssa）
+      </div>
+      <input type="file" id="sub-file" accept=".srt,.vtt,.ass,.ssa,text/*" style="display:none" />
+    </div>
+
+    <div class="card">
+      <div class="card-title">② 輸入 ↔ 輸出格式選擇</div>
+      <div style="display:flex;gap:1.5rem;align-items:center;flex-wrap:wrap;margin-bottom:1.25rem">
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <label style="font-size:.9rem;color:var(--text-secondary)">來源格式</label>
+          <select id="from-fmt" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .9rem;font-size:.9rem;outline:none">
+            <option value="auto">自動偵測</option>
+            <option value="srt">SRT</option>
+            <option value="vtt">VTT</option>
+            <option value="ass">ASS / SSA</option>
+          </select>
+        </div>
+        <span style="font-size:1.5rem;color:var(--text-muted)">→</span>
+        <div style="display:flex;align-items:center;gap:.75rem">
+          <label style="font-size:.9rem;color:var(--text-secondary)">目標格式</label>
+          <select id="to-fmt" style="background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.5rem .9rem;font-size:.9rem;outline:none">
+            <option value="srt">SRT</option>
+            <option value="vtt" selected>VTT</option>
+            <option value="ass">ASS</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="btn-convert">⚡ 轉換</button>
+      </div>
+
+      <div class="io-grid">
+        <div class="io-box">
+          <label>輸入字幕</label>
+          <textarea class="sub-area" id="input-area" placeholder="在此貼上字幕內容，或上方上傳檔案…"></textarea>
+          <div class="stat-info" id="input-stat">0 行</div>
+          <div class="sub-actions">
+            <button class="btn btn-ghost" id="btn-clear-in" style="font-size:.82rem;padding:.4rem .8rem">清除</button>
+            <button class="btn btn-ghost" id="btn-paste" style="font-size:.82rem;padding:.4rem .8rem">📋 貼上</button>
+          </div>
+        </div>
+        <div class="io-box">
+          <label>輸出字幕</label>
+          <textarea class="sub-area" id="output-area" placeholder="轉換結果將顯示於此…" readonly></textarea>
+          <div class="stat-info" id="output-stat">0 行</div>
+          <div class="sub-actions">
+            <button class="btn btn-ghost" id="btn-copy-out" style="font-size:.82rem;padding:.4rem .8rem">📋 複製結果</button>
+            <a class="btn btn-success" id="btn-dl-sub" href="#" download="subtitle.vtt" style="font-size:.82rem;padding:.4rem .8rem">⬇ 下載</a>
+          </div>
+        </div>
+      </div>
+      <div class="error-msg hidden" id="conv-error" style="margin-top:.75rem"></div>
+    </div>
+  </main>
+
+  <script>
+    const dropZone   = document.getElementById('drop-zone');
+    const subFile    = document.getElementById('sub-file');
+    const inputArea  = document.getElementById('input-area');
+    const outputArea = document.getElementById('output-area');
+    const inputStat  = document.getElementById('input-stat');
+    const outputStat = document.getElementById('output-stat');
+    const fromFmt    = document.getElementById('from-fmt');
+    const toFmt      = document.getElementById('to-fmt');
+    const btnConvert = document.getElementById('btn-convert');
+    const btnPaste   = document.getElementById('btn-paste');
+    const btnClearIn = document.getElementById('btn-clear-in');
+    const btnCopyOut = document.getElementById('btn-copy-out');
+    const btnDlSub   = document.getElementById('btn-dl-sub');
+    const convError  = document.getElementById('conv-error');
+    const toast      = document.getElementById('copy-toast');
+    let toastTimer;
+
+    function showToast(msg) { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2000); }
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--accent)'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--border)'; });
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--border)'; loadFile(e.dataTransfer.files[0]); });
+    subFile.addEventListener('change', () => loadFile(subFile.files[0]));
+
+    function loadFile(f) {
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = e => { inputArea.value = e.target.result; updateStat(inputArea, inputStat); autoDetect(f.name, e.target.result); };
+      reader.readAsText(f, 'utf-8');
+    }
+
+    function autoDetect(name, content) {
+      const ext = (name || '').split('.').pop().toLowerCase();
+      if (ext === 'srt' || /^\d+\r?\n\d\d:\d\d:\d\d,/.test(content.trim())) fromFmt.value = 'srt';
+      else if (ext === 'vtt' || content.trim().startsWith('WEBVTT')) fromFmt.value = 'vtt';
+      else if (ext === 'ass' || ext === 'ssa' || content.includes('[Script Info]')) fromFmt.value = 'ass';
+    }
+
+    inputArea.addEventListener('input', () => updateStat(inputArea, inputStat));
+    function updateStat(ta, el) { el.textContent = ta.value.trim() ? ta.value.split('\n').length + ' 行' : '0 行'; }
+
+    btnClearIn.addEventListener('click', () => { inputArea.value = ''; updateStat(inputArea, inputStat); });
+    btnPaste.addEventListener('click', async () => { const t = await navigator.clipboard.readText(); inputArea.value = t; updateStat(inputArea, inputStat); autoDetect('', t); });
+    btnCopyOut.addEventListener('click', () => navigator.clipboard.writeText(outputArea.value).then(() => showToast('已複製！')));
+
+    // ─── Parsers ──────────────────────────────────────────────────────────
+
+    function parseSRT(text) {
+      const blocks = text.replace(/\r\n/g, '\n').trim().split(/\n\n+/);
+      return blocks.map(b => {
+        const lines = b.split('\n');
+        if (lines.length < 2) return null;
+        const timeMatch = lines.find(l => /\d\d:\d\d:\d\d,\d\d\d\s*-->\s*\d\d:\d\d:\d\d,\d\d\d/.test(l));
+        if (!timeMatch) return null;
+        const [start, end] = timeMatch.split(/\s*-->\s*/);
+        const textStart = lines.indexOf(timeMatch) + 1;
+        return { start: srtTimeToMs(start.trim()), end: srtTimeToMs(end.trim()), text: lines.slice(textStart).join('\n') };
+      }).filter(Boolean);
+    }
+
+    function parseVTT(text) {
+      const content = text.replace(/^WEBVTT[^\n]*\n+/, '').replace(/\r\n/g, '\n').trim();
+      const blocks = content.split(/\n\n+/);
+      return blocks.map(b => {
+        const lines = b.split('\n');
+        const timeMatch = lines.find(l => /\d\d:\d\d:\d\d\.\d\d\d\s*-->\s*/.test(l) || /\d\d:\d\d\.\d\d\d\s*-->\s*/.test(l));
+        if (!timeMatch) return null;
+        const [start, end] = timeMatch.split(/\s*-->\s*/);
+        const textStart = lines.indexOf(timeMatch) + 1;
+        return { start: vttTimeToMs(start.trim()), end: vttTimeToMs(end.trim()), text: lines.slice(textStart).join('\n') };
+      }).filter(Boolean);
+    }
+
+    function parseASS(text) {
+      const events = text.replace(/\r\n/g, '\n').split('\n').filter(l => l.startsWith('Dialogue:'));
+      return events.map(l => {
+        const parts = l.split(',');
+        if (parts.length < 10) return null;
+        const start = assTimeToMs(parts[1]?.trim());
+        const end   = assTimeToMs(parts[2]?.trim());
+        const rawText = parts.slice(9).join(',').replace(/\{[^}]*\}/g, '').replace(/\\[Nn]/g, '\n').trim();
+        return { start, end, text: rawText };
+      }).filter(e => e && e.text);
+    }
+
+    // ─── Serializers ─────────────────────────────────────────────────────
+
+    function toSRT(entries) {
+      return entries.map((e, i) => `${i + 1}\n${msToSRTTime(e.start)} --> ${msToSRTTime(e.end)}\n${e.text}`).join('\n\n');
+    }
+    function toVTT(entries) {
+      return 'WEBVTT\n\n' + entries.map((e, i) => `${i + 1}\n${msToVTTTime(e.start)} --> ${msToVTTTime(e.end)}\n${e.text}`).join('\n\n');
+    }
+    function toASS(entries) {
+      const header = `[Script Info]\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Default,Arial,50,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,18,1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text`;
+      const lines = entries.map(e => `Dialogue: 0,${msToASSTime(e.start)},${msToASSTime(e.end)},Default,,0000,0000,0000,,${e.text.replace(/\n/g, '\\N')}`);
+      return header + '\n' + lines.join('\n');
+    }
+
+    // ─── Time helpers ─────────────────────────────────────────────────────
+    const p2 = n => String(n).padStart(2, '0');
+    const p3 = n => String(n).padStart(3, '0');
+
+    function srtTimeToMs(t) {
+      const [h, m, rest] = t.split(':'); const [s, ms] = rest.split(',');
+      return ((+h * 3600 + +m * 60 + +s) * 1000) + +ms;
+    }
+    function vttTimeToMs(t) {
+      const parts = t.split(':');
+      let h = 0, m, s, ms;
+      if (parts.length === 3) { [h, m] = [+parts[0], +parts[1]]; const [ss, mss] = parts[2].split('.'); s = +ss; ms = +mss; }
+      else { m = +parts[0]; const [ss, mss] = parts[1].split('.'); s = +ss; ms = +mss; }
+      return (h * 3600 + m * 60 + s) * 1000 + ms;
+    }
+    function assTimeToMs(t) {
+      const [h, m, rest] = t.split(':'); const [s, cs] = rest.split('.');
+      return ((+h * 3600 + +m * 60 + +s) * 1000) + +cs * 10;
+    }
+    function msToSRTTime(ms) {
+      const h = Math.floor(ms / 3600000); ms %= 3600000;
+      const m = Math.floor(ms / 60000); ms %= 60000;
+      const s = Math.floor(ms / 1000); const mss = ms % 1000;
+      return `${p2(h)}:${p2(m)}:${p2(s)},${p3(mss)}`;
+    }
+    function msToVTTTime(ms) {
+      const h = Math.floor(ms / 3600000); ms %= 3600000;
+      const m = Math.floor(ms / 60000); ms %= 60000;
+      const s = Math.floor(ms / 1000); const mss = ms % 1000;
+      return `${p2(h)}:${p2(m)}:${p2(s)}.${p3(mss)}`;
+    }
+    function msToASSTime(ms) {
+      const h = Math.floor(ms / 3600000); ms %= 3600000;
+      const m = Math.floor(ms / 60000); ms %= 60000;
+      const s = Math.floor(ms / 1000); const cs = Math.floor((ms % 1000) / 10);
+      return `${h}:${p2(m)}:${p2(s)}.${p2(cs)}`;
+    }
+
+    // ─── Convert ──────────────────────────────────────────────────────────
+    btnConvert.addEventListener('click', () => {
+      const input = inputArea.value.trim();
+      if (!input) { convError.classList.remove('hidden'); convError.textContent = '⚠️ 請先輸入字幕內容。'; return; }
+      convError.classList.add('hidden');
+
+      const src = fromFmt.value === 'auto' ? autoDetectFmt(input) : fromFmt.value;
+      let entries;
+      try {
+        if (src === 'srt') entries = parseSRT(input);
+        else if (src === 'vtt') entries = parseVTT(input);
+        else if (src === 'ass') entries = parseASS(input);
+        else throw new Error('無法偵測來源格式，請手動選擇。');
+        if (!entries.length) throw new Error('未能解析到任何字幕條目，請確認格式正確。');
+      } catch(ex) {
+        convError.classList.remove('hidden'); convError.textContent = '⚠️ ' + ex.message; return;
+      }
+
+      const dest = toFmt.value;
+      let result;
+      if (dest === 'srt') result = toSRT(entries);
+      else if (dest === 'vtt') result = toVTT(entries);
+      else result = toASS(entries);
+
+      outputArea.value = result;
+      updateStat(outputArea, outputStat);
+
+      const extMap = { srt: 'srt', vtt: 'vtt', ass: 'ass' };
+      const blob = new Blob([result], { type: 'text/plain;charset=utf-8' });
+      btnDlSub.href = URL.createObjectURL(blob);
+      btnDlSub.download = `subtitle.${extMap[dest] || 'txt'}`;
+    });
+
+    function autoDetectFmt(t) {
+      if (t.trim().startsWith('WEBVTT')) return 'vtt';
+      if (t.includes('[Script Info]')) return 'ass';
+      if (/^\d+\r?\n\d\d:\d\d:\d\d,/.test(t.trim())) return 'srt';
+      throw new Error('無法自動偵測格式，請手動選擇來源格式。');
+    }
+  </script>
+</body>
+</html>

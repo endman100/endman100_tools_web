@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vimeo 影片下載工具 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+  <div class="copy-toast" id="copy-toast">已複製！</div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Vimeo 下載</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎞️</div>
+      <div>
+        <h1>Vimeo 影片下載工具</h1>
+        <p>輸入 Vimeo 影片網址，擷取影片資訊。部分公開影片可直接取得下載連結。</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 輸入 Vimeo 影片網址</div>
+      <div class="input-row">
+        <input type="text" id="url-input" class="url-input"
+          placeholder="https://vimeo.com/123456789"
+          autocomplete="off" spellcheck="false" />
+        <button class="btn btn-primary" id="btn-fetch">擷取資訊</button>
+      </div>
+      <div id="error-msg" class="error-msg hidden"></div>
+      <div class="note-msg">支援：vimeo.com/VIDEO_ID 或 vimeo.com/channels/…/VIDEO_ID</div>
+    </div>
+
+    <div class="card hidden" id="result-card">
+      <div class="card-title">② 影片資訊</div>
+      <div class="result-box">
+        <div class="thumb-preview">
+          <img id="cover-img" src="" alt="封面" />
+          <div class="thumb-preview-info">
+            <div class="info-title" id="video-title">—</div>
+            <div class="info-sub" id="video-meta">—</div>
+            <div class="info-btns">
+              <a class="btn btn-ghost" id="btn-open" href="#" target="_blank" rel="noopener">在 Vimeo 開啟 ↗</a>
+              <a class="btn btn-success hidden" id="btn-dl" href="#" target="_blank" rel="noopener">⬇ 點擊下載</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- quality list if multiple found -->
+      <div id="quality-section" class="hidden" style="margin-top:1.25rem">
+        <div class="card-title" style="margin-bottom:.75rem">可用畫質（點擊下載）</div>
+        <div id="quality-list" style="display:flex;gap:.6rem;flex-wrap:wrap"></div>
+      </div>
+
+      <div class="info-banner hidden" id="no-dl-banner" style="margin-top:1.25rem">
+        <span class="bi">💡</span>
+        <p>
+          此影片未提供直接下載連結（可能為私人或付費影片）。<br>
+          可嘗試：
+          <a href="https://downloader.la/vimeo-downloader.html" target="_blank" rel="noopener">Downloader.la</a>、
+          <a href="https://savethevideo.net/" target="_blank" rel="noopener">SaveTheVideo</a>，
+          或使用 <a href="https://github.com/yt-dlp/yt-dlp" target="_blank" rel="noopener">yt-dlp</a>。
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const urlInput     = document.getElementById('url-input');
+    const btnFetch     = document.getElementById('btn-fetch');
+    const errorMsg     = document.getElementById('error-msg');
+    const resultCard   = document.getElementById('result-card');
+    const coverImg     = document.getElementById('cover-img');
+    const videoTitle   = document.getElementById('video-title');
+    const videoMeta    = document.getElementById('video-meta');
+    const btnOpen      = document.getElementById('btn-open');
+    const btnDl        = document.getElementById('btn-dl');
+    const qualSection  = document.getElementById('quality-section');
+    const qualList     = document.getElementById('quality-list');
+    const noDlBanner   = document.getElementById('no-dl-banner');
+    const toast        = document.getElementById('copy-toast');
+    let toastTimer;
+
+    function showToast(msg) {
+      toast.textContent = msg; toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    function extractId(raw) {
+      const m = raw.match(/vimeo\.com\/(?:.*\/)?(\d+)/);
+      return m ? m[1] : (/^\d+$/.test(raw.trim()) ? raw.trim() : null);
+    }
+
+    function formatDuration(s) {
+      if (!s) return '—';
+      const m = Math.floor(s / 60), ss = s % 60;
+      return `${m}:${String(ss).padStart(2, '0')}`;
+    }
+
+    async function doFetch() {
+      const raw = urlInput.value.trim();
+      if (!raw) return;
+      const id = extractId(raw);
+      if (!id) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = '⚠️ 無法辨識影片 ID，請確認為 Vimeo 影片網址。';
+        resultCard.classList.add('hidden'); return;
+      }
+      errorMsg.classList.add('hidden');
+      resultCard.classList.add('hidden');
+      btnFetch.disabled = true; btnFetch.textContent = '擷取中…';
+
+      try {
+        // Vimeo public oEmbed API — CORS enabled
+        const res = await fetch(`https://vimeo.com/api/oembed.json?url=https://vimeo.com/${id}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        coverImg.src = data.thumbnail_url || '';
+        videoTitle.textContent = data.title || '（無標題）';
+        videoMeta.textContent = `作者：${data.author_name || '—'}  ·  時長：${formatDuration(data.duration)}`;
+        btnOpen.href = `https://vimeo.com/${id}`;
+
+        // Try player config for direct video files
+        let gotFiles = false;
+        try {
+          const cfgRes = await fetch(`https://player.vimeo.com/video/${id}/config`, { credentials: 'omit' });
+          if (cfgRes.ok) {
+            const cfg = await cfgRes.json();
+            const files = (cfg?.request?.files?.progressive || [])
+              .sort((a, b) => (b.height || 0) - (a.height || 0));
+            if (files.length > 0) {
+              gotFiles = true;
+              qualList.innerHTML = '';
+              files.forEach(f => {
+                const a = document.createElement('a');
+                a.className = 'btn btn-success';
+                a.style.cssText = 'font-size:.85rem;padding:.5rem 1rem';
+                a.href = f.url;
+                a.target = '_blank';
+                a.rel = 'noopener';
+                a.download = `vimeo_${id}_${f.quality || f.height + 'p'}.mp4`;
+                a.textContent = `⬇ ${f.quality || (f.height + 'p')}`;
+                qualList.appendChild(a);
+              });
+              qualSection.classList.remove('hidden');
+              // Also set the best quality button
+              btnDl.href = files[0].url;
+              btnDl.download = `vimeo_${id}.mp4`;
+              btnDl.classList.remove('hidden');
+              noDlBanner.classList.add('hidden');
+            }
+          }
+        } catch (_) {}
+
+        if (!gotFiles) {
+          qualSection.classList.add('hidden');
+          btnDl.classList.add('hidden');
+          noDlBanner.classList.remove('hidden');
+        }
+
+        resultCard.classList.remove('hidden');
+      } catch (err) {
+        errorMsg.classList.remove('hidden');
+        errorMsg.textContent = `⚠️ ${err.message}`;
+      } finally {
+        btnFetch.disabled = false; btnFetch.textContent = '擷取資訊';
+      }
+    }
+
+    btnFetch.addEventListener('click', doFetch);
+    urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doFetch(); });
+    urlInput.addEventListener('paste', () => setTimeout(doFetch, 50));
+  </script>
+</body>
+</html>

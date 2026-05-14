@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kokoro TTS — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Kokoro TTS</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🗣️</div>
+      <div>
+        <h1>Kokoro TTS</h1>
+        <p>82M 參數開源 TTS，9 種語言、54 個聲音，kokoro-js 純前端推理，首次載入約 85 MB（q8），快取後可離線使用。</p>
+      </div>
+    </div>
+
+    <!-- Status Card -->
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-badge loading" id="statusBadge">LOADING</span>
+        <span class="status-msg" id="statusMsg">Initializing kokoro-js…</span>
+        <span class="backend-badge hidden" id="backendBadge">WebAssembly</span>
+      </div>
+
+      <!-- Download Progress -->
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div style="display:flex;justify-content:space-between;font-size:.8rem;color:var(--text-muted);margin-bottom:.3rem">
+          <span id="progressLabel">Downloading…</span>
+          <span id="progressMeta"></span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+
+      <!-- File status list -->
+      <div class="model-list" id="fileList"></div>
+    </div>
+
+    <!-- Info Banner -->
+    <div class="info-banner" style="margin-bottom:1.5rem">
+      <span class="bi">ℹ️</span>
+      <p>
+        模型來自 <a href="https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX" target="_blank" rel="noopener">onnx-community/Kokoro-82M-v1.0-ONNX</a>，首次使用需下載約 <strong>85 MB</strong>（q8 量化），存入瀏覽器快取後可離線使用。
+        支援 🇺🇸 美式英文、🇬🇧 英式英文、🇯🇵 日文、🇨🇳 普通話、🇪🇸 西班牙文、🇫🇷 法文、🇮🇳 印地文、🇮🇹 義大利文、🇧🇷 葡萄牙文（巴西）。
+        偵測到 WebGPU 時自動啟用（速度更快）；否則使用 WebAssembly。
+      </p>
+    </div>
+
+    <!-- Settings Card -->
+    <div class="card">
+      <div class="card-title">① 設定</div>
+
+      <div class="form-row">
+        <!-- Voice -->
+        <div class="form-group" style="flex:2;min-width:220px">
+          <label for="voiceSel">聲音 Voice</label>
+          <select id="voiceSel">
+            <optgroup label="🇺🇸 American English">
+              <option value="af_heart" selected>af_heart — Heart ❤️ (Female · A)</option>
+              <option value="af_bella">af_bella — Bella 🔥 (Female · A-)</option>
+              <option value="af_nicole">af_nicole — Nicole 🎧 (Female · B-)</option>
+              <option value="af_aoede">af_aoede — Aoede (Female · C+)</option>
+              <option value="af_kore">af_kore — Kore (Female · C+)</option>
+              <option value="af_sarah">af_sarah — Sarah (Female · C+)</option>
+              <option value="af_alloy">af_alloy — Alloy (Female · C)</option>
+              <option value="af_nova">af_nova — Nova (Female · C)</option>
+              <option value="af_jessica">af_jessica — Jessica (Female · D)</option>
+              <option value="af_river">af_river — River (Female · D)</option>
+              <option value="af_sky">af_sky — Sky (Female · C-)</option>
+              <option value="am_fenrir">am_fenrir — Fenrir (Male · C+)</option>
+              <option value="am_michael">am_michael — Michael (Male · C+)</option>
+              <option value="am_puck">am_puck — Puck (Male · C+)</option>
+              <option value="am_echo">am_echo — Echo (Male · D)</option>
+              <option value="am_eric">am_eric — Eric (Male · D)</option>
+              <option value="am_liam">am_liam — Liam (Male · D)</option>
+              <option value="am_onyx">am_onyx — Onyx (Male · D)</option>
+              <option value="am_adam">am_adam — Adam (Male · F+)</option>
+              <option value="am_santa">am_santa — Santa (Male · D-)</option>
+            </optgroup>
+            <optgroup label="🇬🇧 British English">
+              <option value="bf_emma">bf_emma — Emma (Female · B-)</option>
+              <option value="bf_isabella">bf_isabella — Isabella (Female · C)</option>
+              <option value="bm_fable">bm_fable — Fable (Male · C)</option>
+              <option value="bm_george">bm_george — George (Male · C)</option>
+              <option value="bf_alice">bf_alice — Alice (Female · D)</option>
+              <option value="bf_lily">bf_lily — Lily (Female · D)</option>
+              <option value="bm_lewis">bm_lewis — Lewis (Male · D+)</option>
+              <option value="bm_daniel">bm_daniel — Daniel (Male · D)</option>
+            </optgroup>
+            <optgroup label="🇯🇵 Japanese">
+              <option value="jf_alpha">jf_alpha — Alpha (Female · C+)</option>
+              <option value="jf_gongitsune">jf_gongitsune — Gongitsune (Female · C)</option>
+              <option value="jf_tebukuro">jf_tebukuro — Tebukuro (Female · C)</option>
+              <option value="jf_nezumi">jf_nezumi — Nezumi (Female · C-)</option>
+              <option value="jm_kumo">jm_kumo — Kumo (Male · C-)</option>
+            </optgroup>
+            <optgroup label="🇨🇳 Mandarin Chinese">
+              <option value="zf_xiaobei">zf_xiaobei — Xiaobei (Female · D)</option>
+              <option value="zf_xiaoni">zf_xiaoni — Xiaoni (Female · D)</option>
+              <option value="zf_xiaoxiao">zf_xiaoxiao — Xiaoxiao (Female · D)</option>
+              <option value="zf_xiaoyi">zf_xiaoyi — Xiaoyi (Female · D)</option>
+              <option value="zm_yunjian">zm_yunjian — Yunjian (Male · D)</option>
+              <option value="zm_yunxi">zm_yunxi — Yunxi (Male · D)</option>
+              <option value="zm_yunxia">zm_yunxia — Yunxia (Male · D)</option>
+              <option value="zm_yunyang">zm_yunyang — Yunyang (Male · D)</option>
+            </optgroup>
+            <optgroup label="🇪🇸 Spanish">
+              <option value="ef_dora">ef_dora — Dora (Female)</option>
+              <option value="em_alex">em_alex — Alex (Male)</option>
+              <option value="em_santa">em_santa — Santa (Male)</option>
+            </optgroup>
+            <optgroup label="🇫🇷 French">
+              <option value="ff_siwis">ff_siwis — Siwis (Female · B-)</option>
+            </optgroup>
+            <optgroup label="🇮🇳 Hindi">
+              <option value="hf_alpha">hf_alpha — Alpha (Female · C)</option>
+              <option value="hf_beta">hf_beta — Beta (Female · C)</option>
+              <option value="hm_omega">hm_omega — Omega (Male · C)</option>
+              <option value="hm_psi">hm_psi — Psi (Male · C)</option>
+            </optgroup>
+            <optgroup label="🇮🇹 Italian">
+              <option value="if_sara">if_sara — Sara (Female · C)</option>
+              <option value="im_nicola">im_nicola — Nicola (Male · C)</option>
+            </optgroup>
+            <optgroup label="🇧🇷 Brazilian Portuguese">
+              <option value="pf_dora">pf_dora — Dora (Female)</option>
+              <option value="pm_alex">pm_alex — Alex (Male)</option>
+              <option value="pm_santa">pm_santa — Santa (Male)</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Speed -->
+        <div class="form-group" style="min-width:130px;max-width:200px">
+          <label for="speedInput">速度 Speed（推薦 0.8–1.2）</label>
+          <input type="number" id="speedInput" value="1.0" min="0.5" max="2.0" step="0.05" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Text Input Card -->
+    <div class="card">
+      <div class="card-title">② 輸入文字</div>
+      <textarea id="textInput" placeholder="Enter text to synthesize…">Life is like a box of chocolates. You never know what you're gonna get.</textarea>
+      <div style="margin-top:1rem">
+        <button class="btn btn-primary" id="generateBtn" disabled>🗣️ Generate Speech</button>
+      </div>
+    </div>
+
+    <!-- Results Card -->
+    <div class="card">
+      <div class="card-title">③ 結果</div>
+      <div id="resultsArea">
+        <div class="results-placeholder">
+          <span class="icon">🗣️</span>
+          <p>Generated audio will appear here.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cache Management -->
+    <div class="footer-info">
+      <span id="cacheSize" style="color:var(--text-muted);font-size:.82rem"></span>
+      <button class="btn btn-danger" style="font-size:.8rem;padding:.4rem .9rem" onclick="window._kokoroClearCache()">🗑 Clear Cache</button>
+    </div>
+
+  </main>
+
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

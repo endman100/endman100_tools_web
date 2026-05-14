@@ -191,29 +191,42 @@
       const bsz = textList.length;
       const { textIds, textMask } = this.proc.call(textList, langList);
 
-      const ti = new ort.Tensor('int64',
-        new BigInt64Array(textIds.flat().map(x => BigInt(x))),
-        [bsz, textIds[0].length]);
-      const tm = new ort.Tensor('float32',
-        new Float32Array(textMask.flat(2)),
-        [bsz, 1, textMask[0][0].length]);
+      // Save raw data for all tensors used in multiple run() calls.
+      // proxy=true transfers ArrayBuffers to the Worker (detaching them on main thread),
+      // so every run() call must receive freshly constructed tensors.
+      const tiRaw   = new BigInt64Array(textIds.flat().map(x => BigInt(x)));
+      const tiShape = [bsz, textIds[0].length];
+      const tmRaw   = new Float32Array(textMask.flat(2));
+      const tmShape = [bsz, 1, textMask[0][0].length];
+      const dpRaw   = new Float32Array(style.dp.data);
+      const dpDims  = [...style.dp.dims];
+      const ttlRaw  = new Float32Array(style.ttl.data);
+      const ttlDims = [...style.ttl.dims];
+
+      const mkTi  = () => new ort.Tensor('int64',   new BigInt64Array(tiRaw),  tiShape);
+      const mkTm  = () => new ort.Tensor('float32', new Float32Array(tmRaw),   tmShape);
+      const mkDp  = () => new ort.Tensor('float32', new Float32Array(dpRaw),   dpDims);
+      const mkTtl = () => new ort.Tensor('float32', new Float32Array(ttlRaw),  ttlDims);
 
       // Duration predictor
-      const dpOut = await this.dpOrt.run({ text_ids: ti, style_dp: style.dp, text_mask: tm });
+      const dpOut = await this.dpOrt.run({ text_ids: mkTi(), style_dp: mkDp(), text_mask: mkTm() });
       const duration = Array.from(dpOut.duration.data).map(d => d / speed);
 
       // Text encoder
-      const teOut = await this.teOrt.run({ text_ids: ti, style_ttl: style.ttl, text_mask: tm });
-      const textEmb = teOut.text_emb;
+      const teOut = await this.teOrt.run({ text_ids: mkTi(), style_ttl: mkTtl(), text_mask: mkTm() });
+      const textEmbRaw  = new Float32Array(teOut.text_emb.data);
+      const textEmbDims = [...teOut.text_emb.dims];
+      const mkTe  = () => new ort.Tensor('float32', new Float32Array(textEmbRaw), textEmbDims);
 
       // Sample noisy latent
       let { xt, latentMask } = this._sampleNoisy(duration);
-      const lm = new ort.Tensor('float32',
-        new Float32Array(latentMask.flat(2)),
-        [bsz, 1, latentMask[0][0].length]);
-      const tsTensor = new ort.Tensor('float32', new Float32Array(bsz).fill(totalStep), [bsz]);
+      const lmRaw   = new Float32Array(latentMask.flat(2));
+      const lmShape = [bsz, 1, latentMask[0][0].length];
+      const tsRaw   = new Float32Array(bsz).fill(totalStep);
+      const mkLm  = () => new ort.Tensor('float32', new Float32Array(lmRaw),  lmShape);
+      const mkTs  = () => new ort.Tensor('float32', new Float32Array(tsRaw),  [bsz]);
 
-      // Denoising loop
+      // Denoising loop — every tensor must be freshly created each iteration
       for (let step = 0; step < totalStep; step++) {
         progressCb && progressCb(step + 1, totalStep);
         const csT = new ort.Tensor('float32', new Float32Array(bsz).fill(step), [bsz]);
@@ -222,8 +235,8 @@
           [bsz, xt[0].length, xt[0][0].length]);
 
         const veOut = await this.veOrt.run({
-          noisy_latent: xtT, text_emb: textEmb, style_ttl: style.ttl,
-          latent_mask: lm, text_mask: tm, current_step: csT, total_step: tsTensor
+          noisy_latent: xtT, text_emb: mkTe(), style_ttl: mkTtl(),
+          latent_mask: mkLm(), text_mask: mkTm(), current_step: csT, total_step: mkTs()
         });
 
         const denoised = Array.from(veOut.denoised_latent.data);
@@ -575,6 +588,7 @@
     // Configure ORT
     ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
     ort.env.wasm.numThreads = 1; // Avoid SharedArrayBuffer requirement
+    ort.env.wasm.proxy = true;   // Run inference in Web Worker, keeps UI responsive
 
     const genBtn = $('generateBtn');
     genBtn.addEventListener('click', generate);

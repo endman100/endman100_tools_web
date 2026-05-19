@@ -6,11 +6,12 @@ const TOKENIZER_ID = 'llm-jp/llm-jp-3-150m';
 const DB_NAME = 'irodori-v3-onnx-cache';
 const STORE_NAME = 'files';
 const CACHE_NAME = 'irodori-v3-onnx-files';
-const OPFS_DIR = 'irodori-v3-onnx-files-v2';
+const OPFS_DIR = 'irodori-v3-onnx-files-v3';
 const SAMPLE_RATE = 48000;
 const HOP_LENGTH = 1920;
 const LATENT_DIM = 32;
 const HEAD_DIM = 64;
+const DOWNLOAD_CHUNK_SIZE = 32 * 1024 * 1024;
 
 const MODEL_DEFS = [
   { id: 'text', label: 'Text Encoder', file: 'text_encoder.onnx', size: '338 MB' },
@@ -28,6 +29,7 @@ let db = null;
 let tokenizer = null;
 let sessions = null;
 let currentAudioUrl = null;
+let backendMode = localStorage.getItem('irodori-backend-mode') || 'gpu';
 const preloadedBuffers = new Map();
 const downloadPromises = new Map();
 
@@ -46,6 +48,9 @@ const refs = {
   dotRuntime: document.getElementById('dot-runtime'),
   dotModels: document.getElementById('dot-models'),
   dotOutput: document.getElementById('dot-output'),
+  backendBadge: document.getElementById('backendBadge'),
+  backendToggle: document.getElementById('backendToggle'),
+  cacheClearBtn: document.getElementById('cacheClearBtn'),
   textInput: document.getElementById('textInput'),
   referenceAudio: document.getElementById('referenceAudio'),
   numStepsInput: document.getElementById('numStepsInput'),
@@ -138,6 +143,91 @@ function resetParams() {
   refs.speakerKvScaleInput.value = DEFAULTS.speakerKvScale;
   refs.speakerKvMinTInput.value = DEFAULTS.speakerKvMinT;
   refs.speakerKvMaxLayersInput.value = DEFAULTS.speakerKvMaxLayers;
+}
+
+function activeBackendLabel() {
+  return backendMode === 'gpu' && navigator.gpu ? 'GPU (WebGPU)' : 'CPU (WASM)';
+}
+
+function updateBackendUI() {
+  if (backendMode === 'gpu' && !navigator.gpu) backendMode = 'cpu';
+  refs.backendBadge.textContent = activeBackendLabel();
+  refs.backendToggle.disabled = !navigator.gpu || refs.generateBtn.disabled;
+  refs.backendToggle.textContent = backendMode === 'gpu' ? '切換至 CPU' : '切換至 GPU';
+  refs.cacheClearBtn.disabled = refs.generateBtn.disabled;
+}
+
+function switchBackend() {
+  if (!navigator.gpu) return;
+  backendMode = backendMode === 'gpu' ? 'cpu' : 'gpu';
+  localStorage.setItem('irodori-backend-mode', backendMode);
+  sessions = null;
+  updateBackendUI();
+  setDot(refs.dotOutput, 'pending');
+  setStatus('success', `Backend switched to ${activeBackendLabel()} — click Generate`);
+}
+
+function deleteIndexedDB(name) {
+  return new Promise(resolve => {
+    try {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = () => resolve();
+      req.onerror = () => resolve();
+      req.onblocked = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}
+
+async function clearOpfsCache() {
+  if (!navigator.storage?.getDirectory) return;
+  try {
+    const root = await navigator.storage.getDirectory();
+    await root.removeEntry(OPFS_DIR, { recursive: true });
+  } catch {
+    // Missing OPFS cache is already a cleared state.
+  }
+}
+
+async function clearModelCache() {
+  if (refs.generateBtn.disabled) return;
+  if (!window.confirm('清除已下載的 Irodori ONNX 模型快取？清除後會立即重新下載。')) return;
+
+  sessions = null;
+  preloadedBuffers.clear();
+  downloadPromises.clear();
+  if (db) {
+    db.close();
+    db = null;
+  }
+
+  refs.generateBtn.disabled = true;
+  updateBackendUI();
+  setDot(refs.dotModels, 'loading');
+  setDot(refs.dotOutput, 'pending');
+  setStatus('loading', 'Clearing downloaded model cache…');
+  refs.progressWrap.classList.remove('hidden');
+  refs.progressLabel.textContent = 'Clearing OPFS / Cache API / IndexedDB';
+  refs.progressMeta.textContent = '';
+  refs.progressFill.style.width = '35%';
+
+  try {
+    await clearOpfsCache();
+    if ('caches' in window) await caches.delete(CACHE_NAME);
+    await deleteIndexedDB(DB_NAME);
+    refs.progressFill.style.width = '100%';
+    setStatus('loading', 'Cache cleared — downloading models again…');
+    await preloadModelFiles();
+  } catch (error) {
+    console.error(error);
+    refs.progressWrap.classList.add('hidden');
+    setDot(refs.dotModels, 'error');
+    setStatus('error', `Cache clear failed: ${error.message}`);
+    refs.generateBtn.disabled = false;
+    refs.generateBtn.textContent = '🎙️ Generate';
+    updateBackendUI();
+  }
 }
 
 function openDB() {
@@ -239,32 +329,38 @@ async function isCached(def) {
     const url = `${HF_BASE}/${def.file}`;
     if (preloadedBuffers.has(url)) return true;
     if (await opfsFile(def)) return true;
-    if (await dbGet(url)) return true;
-    return Boolean(await cacheMatch(url));
+    return false;
   } catch {
     return false;
   }
 }
 
-async function downloadToOpfs(def, response, total) {
-  if (!response.body) return false;
+async function downloadToOpfs(def, url, total) {
+  if (!Number.isFinite(total) || total <= 0) return false;
   const handle = await opfsFileHandle(def, true);
   if (!handle) return false;
   const writable = await handle.createWritable();
-  const reader = response.body.getReader();
   let loaded = 0;
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      await writable.write(value);
-      loaded += value.byteLength;
-      const pct = total ? Math.min(100, (loaded / total) * 100) : 0;
+    for (let start = 0; start < total; start += DOWNLOAD_CHUNK_SIZE) {
+      const end = Math.min(total - 1, start + DOWNLOAD_CHUNK_SIZE - 1);
+      const response = await fetch(url, {
+        headers: { Range: `bytes=${start}-${end}` },
+        cache: 'no-store',
+      });
+      if (!(response.status === 206 || (start === 0 && response.ok && total <= DOWNLOAD_CHUNK_SIZE))) {
+        throw new Error(`Range request failed for ${def.file}: HTTP ${response.status}`);
+      }
+      const chunk = new Uint8Array(await response.arrayBuffer());
+      await writable.write({ type: 'write', position: start, data: chunk });
+      loaded += chunk.byteLength;
+      const pct = Math.min(100, (loaded / total) * 100);
       refs.progressLabel.textContent = `Downloading ${def.label}`;
       refs.progressMeta.textContent = `${fmtBytes(loaded)} / ${fmtBytes(total) || def.size}`;
       refs.progressFill.style.width = `${pct}%`;
       await new Promise(resolve => setTimeout(resolve, 0));
     }
+    await writable.truncate(total);
     await writable.close();
     return true;
   } catch (error) {
@@ -277,22 +373,28 @@ async function downloadToCache(def) {
   const url = `${HF_BASE}/${def.file}`;
   if (await isCached(def)) return;
 
-  let response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${def.file}`);
-  const total = Number.parseInt(response.headers.get('content-length') || '0', 10);
+  let total = 0;
+  try {
+    const head = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    total = Number.parseInt(head.headers.get('content-length') || '0', 10);
+  } catch {
+    total = 0;
+  }
 
   refs.progressLabel.textContent = `Downloading ${def.label}`;
   refs.progressMeta.textContent = fmtBytes(total) || def.size;
   refs.progressFill.style.width = '12%';
 
   try {
-    if (await downloadToOpfs(def, response.clone(), total)) return;
+    if (await downloadToOpfs(def, url, total)) return;
   } catch (error) {
     console.warn('OPFS cache failed; falling back for', def.file, error);
     await removeOpfsFile(def);
-    response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${def.file}`);
   }
+
+  let response = await fetch(url);
+  if (!response.ok) throw new Error(`HTTP ${response.status} downloading ${def.file}`);
+  if (!total) total = Number.parseInt(response.headers.get('content-length') || '0', 10);
 
   if ('caches' in window) {
     const cache = await caches.open(CACHE_NAME);
@@ -354,6 +456,7 @@ async function preloadModelFiles() {
   setDot(refs.dotRuntime, 'done');
   setDot(refs.dotModels, 'loading');
   refs.generateBtn.disabled = true;
+  updateBackendUI();
   refs.generateBtn.textContent = '⏳ Downloading Models…';
   refs.progressWrap.classList.remove('hidden');
   refs.progressFill.style.width = '0%';
@@ -377,12 +480,13 @@ async function preloadModelFiles() {
   } finally {
     refs.generateBtn.disabled = false;
     refs.generateBtn.textContent = '🎙️ Generate';
+    updateBackendUI();
   }
 }
 
 function providerOptions() {
   return {
-    executionProviders: navigator.gpu ? ['webgpu', 'wasm'] : ['wasm'],
+    executionProviders: backendMode === 'gpu' && navigator.gpu ? ['webgpu', 'wasm'] : ['wasm'],
     graphOptimizationLevel: 'all',
   };
 }
@@ -390,6 +494,7 @@ function providerOptions() {
 async function loadEngine() {
   if (sessions && tokenizer) return;
   setStatus('loading', 'Loading tokenizer and ONNX models…');
+  updateBackendUI();
   setDot(refs.dotRuntime, 'loading');
   setDot(refs.dotModels, 'loading');
   refs.progressWrap.classList.remove('hidden');
@@ -413,6 +518,7 @@ async function loadEngine() {
   refs.progressWrap.classList.add('hidden');
   setDot(refs.dotModels, 'done');
   setStatus('success', `Ready — ONNX Runtime Web (${options.executionProviders.join(' -> ')})`);
+  updateBackendUI();
 }
 
 async function loadOptionalSession(id) {
@@ -692,6 +798,7 @@ async function generateSpeech() {
     return;
   }
   refs.generateBtn.disabled = true;
+  updateBackendUI();
   refs.generateBtn.textContent = '⏳ Loading / Generating…';
   refs.logCard.classList.remove('hidden');
   refs.runLog.textContent = '';
@@ -753,6 +860,7 @@ async function generateSpeech() {
   } finally {
     refs.generateBtn.disabled = false;
     refs.generateBtn.textContent = '🎙️ Generate';
+    updateBackendUI();
   }
 }
 
@@ -765,7 +873,10 @@ document.querySelectorAll('.sample-chip').forEach(button => {
 
 refs.resetBtn.addEventListener('click', resetParams);
 refs.generateBtn.addEventListener('click', generateSpeech);
+refs.backendToggle.addEventListener('click', switchBackend);
+refs.cacheClearBtn.addEventListener('click', clearModelCache);
 
 resetParams();
+updateBackendUI();
 setDot(refs.dotRuntime, 'done');
 preloadModelFiles();

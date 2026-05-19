@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV 閱讀器 — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">CSV 閱讀器</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">📊</div>
+      <div>
+        <h1>CSV 閱讀器</h1>
+        <p>上傳 CSV 檔案，即時瀏覽並直接編輯表格內容，完成後下載為新的 CSV。完全在瀏覽器本地處理。</p>
+      </div>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div class="card" id="upload-card">
+      <div class="card-title">① 上傳 CSV 檔案</div>
+
+      <div class="drop-zone" id="drop-zone">
+        <input type="file" id="file-input" accept=".csv,text/csv" />
+        <div class="drop-zone-inner">
+          <span class="drop-icon">📂</span>
+          <p class="drop-main">點擊選擇或拖曳 CSV 檔案到此處</p>
+          <p class="drop-sub">支援 UTF-8 / BOM、逗號或 Tab 分隔</p>
+        </div>
+      </div>
+
+      <div class="upload-options">
+        <div class="option-group">
+          <label for="delimiter-select">分隔符號</label>
+          <select id="delimiter-select">
+            <option value="auto" selected>自動偵測</option>
+            <option value=",">逗號 (,)</option>
+            <option value="	">Tab (\t)</option>
+            <option value=";">分號 (;)</option>
+            <option value="|">管線 (|)</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label for="encoding-select">編碼</label>
+          <select id="encoding-select">
+            <option value="UTF-8" selected>UTF-8</option>
+            <option value="Big5">Big5（繁體中文）</option>
+            <option value="GB18030">GB18030（簡體中文）</option>
+            <option value="Shift_JIS">Shift-JIS（日文）</option>
+          </select>
+        </div>
+        <div class="option-group checkbox-group">
+          <label>
+            <input type="checkbox" id="header-checkbox" checked />
+            第一列為標題列
+          </label>
+        </div>
+      </div>
+
+      <div class="or-divider"><span>或</span></div>
+
+      <div class="paste-area-wrap">
+        <label for="paste-area">貼上 CSV 文字</label>
+        <textarea id="paste-area" rows="5" placeholder="A,B,C&#10;1,2,3&#10;4,5,6" spellcheck="false"></textarea>
+        <button class="btn btn-secondary" id="parse-paste-btn">解析貼上的內容</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Edit -->
+    <div class="card hidden" id="editor-card">
+      <div class="card-title-row">
+        <div class="card-title">② 編輯表格</div>
+        <div class="meta-badges">
+          <span class="badge" id="badge-rows">0 列</span>
+          <span class="badge" id="badge-cols">0 欄</span>
+          <span class="badge badge-name" id="badge-filename">未命名</span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-sm" id="add-row-btn">＋ 新增列</button>
+        <button class="btn btn-sm" id="add-col-btn">＋ 新增欄</button>
+        <button class="btn btn-sm btn-danger" id="del-row-btn">－ 刪除選取列</button>
+        <button class="btn btn-sm btn-danger" id="del-col-btn">－ 刪除選取欄</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-sm btn-ghost" id="sort-asc-btn">↑ 升冪排序</button>
+        <button class="btn btn-sm btn-ghost" id="sort-desc-btn">↓ 降冪排序</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-sm btn-ghost" id="clear-table-btn">🗑 清空</button>
+        <button class="btn btn-sm btn-ghost" id="reload-btn">↺ 重新載入</button>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" id="search-input" placeholder="🔍  搜尋表格內容..." />
+        <span id="search-count" class="search-count"></span>
+      </div>
+
+      <div class="table-wrap" id="table-wrap">
+        <table id="csv-table">
+          <thead id="csv-thead"></thead>
+          <tbody id="csv-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Step 3: Download -->
+    <div class="card hidden" id="download-card">
+      <div class="card-title">③ 下載 CSV</div>
+      <div class="download-options">
+        <div class="option-group">
+          <label for="out-delimiter">輸出分隔符號</label>
+          <select id="out-delimiter">
+            <option value="," selected>逗號 (,)</option>
+            <option value="	">Tab (\t)</option>
+            <option value=";">分號 (;)</option>
+            <option value="|">管線 (|)</option>
+          </select>
+        </div>
+        <div class="option-group">
+          <label for="out-filename">檔案名稱</label>
+          <input type="text" id="out-filename" value="output.csv" spellcheck="false" />
+        </div>
+        <div class="option-group checkbox-group">
+          <label>
+            <input type="checkbox" id="bom-checkbox" checked />
+            加入 UTF-8 BOM（建議 Excel 使用）
+          </label>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-success" id="download-btn">⬇ 下載 CSV</button>
+        <button class="btn btn-ghost" id="copy-csv-btn">📋 複製 CSV 文字</button>
+      </div>
+      <div class="copy-toast hidden" id="copy-toast">已複製到剪貼簿！</div>
+    </div>
+
+  </main>
+
+  <script>
+  (() => {
+    /* ── State ── */
+    let csvData   = [];   // 2D array (including header row if headerMode)
+    let headers   = [];   // header row data
+    let headerMode = true;
+    let originalFilename = '';
+    let currentDelimiter = ',';
+    let selectedRows = new Set();
+    let selectedCols = new Set();
+
+    /* ── DOM refs ── */
+    const dropZone       = document.getElementById('drop-zone');
+    const fileInput      = document.getElementById('file-input');
+    const delimiterSel   = document.getElementById('delimiter-select');
+    const encodingSel    = document.getElementById('encoding-select');
+    const headerCheckbox = document.getElementById('header-checkbox');
+    const pasteArea      = document.getElementById('paste-area');
+    const parsePasteBtn  = document.getElementById('parse-paste-btn');
+
+    const editorCard     = document.getElementById('editor-card');
+    const downloadCard   = document.getElementById('download-card');
+    const csvThead       = document.getElementById('csv-thead');
+    const csvTbody       = document.getElementById('csv-tbody');
+    const badgeRows      = document.getElementById('badge-rows');
+    const badgeCols      = document.getElementById('badge-cols');
+    const badgeFilename  = document.getElementById('badge-filename');
+    const searchInput    = document.getElementById('search-input');
+    const searchCount    = document.getElementById('search-count');
+
+    const addRowBtn      = document.getElementById('add-row-btn');
+    const addColBtn      = document.getElementById('add-col-btn');
+    const delRowBtn      = document.getElementById('del-row-btn');
+    const delColBtn      = document.getElementById('del-col-btn');
+    const sortAscBtn     = document.getElementById('sort-asc-btn');
+    const sortDescBtn    = document.getElementById('sort-desc-btn');
+    const clearTableBtn  = document.getElementById('clear-table-btn');
+    const reloadBtn      = document.getElementById('reload-btn');
+
+    const outDelimiter   = document.getElementById('out-delimiter');
+    const outFilename    = document.getElementById('out-filename');
+    const bomCheckbox    = document.getElementById('bom-checkbox');
+    const downloadBtn    = document.getElementById('download-btn');
+    const copyCsvBtn     = document.getElementById('copy-csv-btn');
+    const copyToast      = document.getElementById('copy-toast');
+
+    /* ── CSV Parser ── */
+    function detectDelimiter(text) {
+      const candidates = [',', '\t', ';', '|'];
+      const firstLine  = text.split('\n')[0];
+      let best = ',', bestCount = 0;
+      for (const c of candidates) {
+        const count = (firstLine.split(c).length - 1);
+        if (count > bestCount) { bestCount = count; best = c; }
+      }
+      return best;
+    }
+
+    function parseCSV(text, delim) {
+      const rows = [];
+      let row = [], field = '', inQuote = false;
+      // normalise line endings
+      text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (inQuote) {
+          if (ch === '"') {
+            if (text[i+1] === '"') { field += '"'; i++; }
+            else inQuote = false;
+          } else { field += ch; }
+        } else {
+          if (ch === '"') { inQuote = true; }
+          else if (ch === delim) { row.push(field); field = ''; }
+          else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+          else { field += ch; }
+        }
+      }
+      if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+      // remove trailing empty row
+      if (rows.length && rows[rows.length-1].every(c => c === '')) rows.pop();
+      return rows;
+    }
+
+    function normaliseRows(rows) {
+      // make all rows the same length
+      const maxCols = Math.max(...rows.map(r => r.length), 0);
+      return rows.map(r => {
+        const copy = [...r];
+        while (copy.length < maxCols) copy.push('');
+        return copy;
+      });
+    }
+
+    /* ── Load / Render ── */
+    function loadText(text, filename) {
+      originalFilename = filename || 'output.csv';
+      const delSel = delimiterSel.value;
+      currentDelimiter = delSel === 'auto' ? detectDelimiter(text) : delSel;
+      const rows = normaliseRows(parseCSV(text, currentDelimiter));
+      if (rows.length === 0) return;
+      headerMode = headerCheckbox.checked;
+      if (headerMode && rows.length >= 1) {
+        headers  = rows[0].map((h,i) => h || `欄${i+1}`);
+        csvData  = rows.slice(1);
+      } else {
+        const colCount = rows[0].length;
+        headers  = Array.from({length: colCount}, (_,i) => `欄${i+1}`);
+        csvData  = rows;
+      }
+      outFilename.value = filename
+        ? filename.replace(/\.csv$/i, '_edited.csv')
+        : 'output.csv';
+      renderTable();
+      showCards();
+    }
+
+    function renderTable() {
+      selectedRows.clear();
+      selectedCols.clear();
+      const query = searchInput.value.toLowerCase();
+
+      /* thead */
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<th class="row-num-th"></th>';
+      headers.forEach((h, ci) => {
+        const th = document.createElement('th');
+        th.dataset.col = ci;
+        th.classList.toggle('col-selected', selectedCols.has(ci));
+
+        const spanText = document.createElement('span');
+        spanText.className = 'th-label';
+        spanText.contentEditable = 'true';
+        spanText.spellcheck = false;
+        spanText.textContent = h;
+        spanText.addEventListener('input', () => { headers[ci] = spanText.textContent; updateBadges(); });
+        spanText.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault(); spanText.blur();} });
+
+        const sortBtn = document.createElement('button');
+        sortBtn.className = 'sort-col-btn';
+        sortBtn.title = '點擊排序此欄';
+        sortBtn.textContent = '⇅';
+        let sortState = 0;
+        sortBtn.addEventListener('click', () => {
+          sortState = (sortState + 1) % 3;
+          sortBtn.textContent = sortState === 1 ? '↑' : sortState === 2 ? '↓' : '⇅';
+          if (sortState === 0) { renderTable(); return; }
+          csvData.sort((a,b) => {
+            const va = a[ci] ?? '', vb = b[ci] ?? '';
+            const na = parseFloat(va), nb = parseFloat(vb);
+            const cmp = (!isNaN(na) && !isNaN(nb)) ? na - nb : va.localeCompare(vb, 'zh-Hant');
+            return sortState === 1 ? cmp : -cmp;
+          });
+          renderTable();
+        });
+
+        th.addEventListener('click', e => {
+          if (e.target === spanText || e.target === sortBtn) return;
+          selectedCols.has(ci) ? selectedCols.delete(ci) : selectedCols.add(ci);
+          document.querySelectorAll(`td[data-col="${ci}"]`).forEach(td => td.classList.toggle('col-selected', selectedCols.has(ci)));
+          th.classList.toggle('col-selected', selectedCols.has(ci));
+        });
+
+        th.appendChild(spanText);
+        th.appendChild(sortBtn);
+        tr.appendChild(th);
+      });
+      csvThead.innerHTML = '';
+      csvThead.appendChild(tr);
+
+      /* tbody */
+      csvTbody.innerHTML = '';
+      csvData.forEach((row, ri) => {
+        const tr = document.createElement('tr');
+        tr.dataset.row = ri;
+        tr.classList.toggle('row-selected', selectedRows.has(ri));
+
+        const rowNumTd = document.createElement('td');
+        rowNumTd.className = 'row-num';
+        rowNumTd.textContent = ri + 1;
+        rowNumTd.addEventListener('click', () => {
+          selectedRows.has(ri) ? selectedRows.delete(ri) : selectedRows.add(ri);
+          tr.classList.toggle('row-selected', selectedRows.has(ri));
+        });
+        tr.appendChild(rowNumTd);
+
+        row.forEach((cell, ci) => {
+          const td = document.createElement('td');
+          td.dataset.col = ci;
+          td.classList.toggle('col-selected', selectedCols.has(ci));
+
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.value = cell;
+          inp.spellcheck = false;
+          if (query && cell.toLowerCase().includes(query)) {
+            inp.classList.add('highlight');
+          }
+          inp.addEventListener('input', () => { csvData[ri][ci] = inp.value; });
+          inp.addEventListener('focus', () => td.classList.add('focus'));
+          inp.addEventListener('blur',  () => td.classList.remove('focus'));
+          // Tab navigation
+          inp.addEventListener('keydown', e => {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              const allInputs = csvTbody.querySelectorAll('input');
+              const idx = Array.from(allInputs).indexOf(inp);
+              const next = allInputs[e.shiftKey ? idx-1 : idx+1];
+              if (next) next.focus();
+            }
+            if (e.key === 'Enter') {
+              // move to same column, next row
+              const allInputs = Array.from(csvTbody.querySelectorAll('input'));
+              const idx = allInputs.indexOf(inp);
+              const colCount = headers.length;
+              const next = allInputs[idx + colCount];
+              if (next) next.focus();
+            }
+          });
+          td.appendChild(inp);
+          tr.appendChild(td);
+        });
+        csvTbody.appendChild(tr);
+      });
+
+      updateBadges();
+      applySearch();
+    }
+
+    function updateBadges() {
+      badgeRows.textContent     = `${csvData.length} 列`;
+      badgeCols.textContent     = `${headers.length} 欄`;
+      badgeFilename.textContent = originalFilename || '未命名';
+    }
+
+    function showCards() {
+      editorCard.classList.remove('hidden');
+      downloadCard.classList.remove('hidden');
+    }
+
+    /* ── Search ── */
+    function applySearch() {
+      const query = searchInput.value.toLowerCase().trim();
+      let count = 0;
+      csvTbody.querySelectorAll('input').forEach(inp => {
+        const matches = query && inp.value.toLowerCase().includes(query);
+        inp.classList.toggle('highlight', matches);
+        if (matches) count++;
+      });
+      if (query) {
+        searchCount.textContent = count > 0 ? `${count} 個符合` : '無符合結果';
+        searchCount.className   = count > 0 ? 'search-count found' : 'search-count not-found';
+      } else {
+        searchCount.textContent = '';
+      }
+    }
+
+    searchInput.addEventListener('input', applySearch);
+
+    /* ── Toolbar actions ── */
+    addRowBtn.addEventListener('click', () => {
+      csvData.push(Array(headers.length).fill(''));
+      renderTable();
+    });
+
+    addColBtn.addEventListener('click', () => {
+      const name = `欄${headers.length + 1}`;
+      headers.push(name);
+      csvData.forEach(row => row.push(''));
+      renderTable();
+    });
+
+    delRowBtn.addEventListener('click', () => {
+      if (selectedRows.size === 0) { alert('請先點選列號來選取要刪除的列。'); return; }
+      csvData = csvData.filter((_, i) => !selectedRows.has(i));
+      selectedRows.clear();
+      renderTable();
+    });
+
+    delColBtn.addEventListener('click', () => {
+      if (selectedCols.size === 0) { alert('請先點選欄標題來選取要刪除的欄。'); return; }
+      headers = headers.filter((_, i) => !selectedCols.has(i));
+      csvData = csvData.map(row => row.filter((_, i) => !selectedCols.has(i)));
+      selectedCols.clear();
+      renderTable();
+    });
+
+    sortAscBtn.addEventListener('click', () => {
+      if (selectedCols.size !== 1) { alert('請先選取一個欄位再排序。'); return; }
+      const ci = [...selectedCols][0];
+      csvData.sort((a,b) => {
+        const na = parseFloat(a[ci]), nb = parseFloat(b[ci]);
+        return (!isNaN(na) && !isNaN(nb)) ? na - nb : (a[ci]??'').localeCompare(b[ci]??'', 'zh-Hant');
+      });
+      renderTable();
+    });
+
+    sortDescBtn.addEventListener('click', () => {
+      if (selectedCols.size !== 1) { alert('請先選取一個欄位再排序。'); return; }
+      const ci = [...selectedCols][0];
+      csvData.sort((a,b) => {
+        const na = parseFloat(a[ci]), nb = parseFloat(b[ci]);
+        return (!isNaN(na) && !isNaN(nb)) ? nb - na : (b[ci]??'').localeCompare(a[ci]??'', 'zh-Hant');
+      });
+      renderTable();
+    });
+
+    clearTableBtn.addEventListener('click', () => {
+      if (!confirm('確定要清空所有資料列（保留欄標題）？')) return;
+      csvData = [];
+      renderTable();
+    });
+
+    reloadBtn.addEventListener('click', () => {
+      if (!confirm('確定要重新載入？目前所有修改將遺失。')) return;
+      editorCard.classList.add('hidden');
+      downloadCard.classList.add('hidden');
+    });
+
+    /* ── File Upload ── */
+    function readFile(file) {
+      const encoding = encodingSel.value;
+      const reader   = new FileReader();
+      reader.onload  = e => { loadText(e.target.result, file.name); };
+      reader.readAsText(file, encoding);
+    }
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      if (e.target.files[0]) readFile(e.target.files[0]);
+    });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('dragging');
+      const file = e.dataTransfer.files[0];
+      if (file) readFile(file);
+    });
+
+    parsePasteBtn.addEventListener('click', () => {
+      const text = pasteArea.value.trim();
+      if (!text) return;
+      loadText(text, '');
+    });
+
+    /* ── Build CSV string ── */
+    function buildCSV(delim) {
+      function escapeField(val) {
+        const s = String(val ?? '');
+        if (s.includes(delim) || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      }
+      const rows = headerMode ? [headers, ...csvData] : csvData;
+      return rows.map(row => row.map(escapeField).join(delim)).join('\r\n');
+    }
+
+    /* ── Download ── */
+    downloadBtn.addEventListener('click', () => {
+      const delim    = outDelimiter.value;
+      const filename = outFilename.value.trim() || 'output.csv';
+      let   text     = buildCSV(delim);
+      const bom      = bomCheckbox.checked ? '\uFEFF' : '';
+      const blob     = new Blob([bom + text], { type: 'text/csv;charset=utf-8;' });
+      const url      = URL.createObjectURL(blob);
+      const a        = document.createElement('a');
+      a.href         = url;
+      a.download     = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    /* ── Copy ── */
+    copyCsvBtn.addEventListener('click', async () => {
+      const delim = outDelimiter.value;
+      const text  = buildCSV(delim);
+      try {
+        await navigator.clipboard.writeText(text);
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      copyToast.classList.remove('hidden');
+      setTimeout(() => copyToast.classList.add('hidden'), 2000);
+    });
+
+  })();
+  </script>
+
+</body>
+</html>

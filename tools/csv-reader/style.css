@@ -466,6 +466,34 @@ a{text-decoration:none;color:inherit}
 .table-wrap::-webkit-scrollbar-thumb{background:rgba(108,99,255,.3);border-radius:4px}
 .table-wrap::-webkit-scrollbar-thumb:hover{background:rgba(108,99,255,.5)}
 
+/* ===== Toolbar hint ===== */
+.toolbar-hint {
+  font-size: .78rem;
+  color: var(--text-muted);
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* ===== Table copy toast (fixed bottom) ===== */
+.table-toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(22,33,62,.96);
+  border: 1px solid var(--accent);
+  color: var(--accent-light);
+  border-radius: var(--radius-sm);
+  padding: .6rem 1.4rem;
+  font-size: .92rem;
+  font-weight: 500;
+  z-index: 9999;
+  box-shadow: 0 4px 24px rgba(108,99,255,.25);
+  pointer-events: none;
+  transition: opacity .3s;
+}
+.table-toast.hidden{display:none}
+
 /* ===== Responsive ===== */
 @media (max-width:640px){
   .tool-page{padding:1.25rem 1rem 4rem}

@@ -109,6 +109,10 @@
         <div class="toolbar-sep"></div>
         <button class="btn btn-sm btn-ghost" id="clear-table-btn">🗑 清空</button>
         <button class="btn btn-sm btn-ghost" id="reload-btn">↺ 重新載入</button>
+        <div class="toolbar-sep"></div>
+        <button class="btn btn-sm btn-ghost" id="copy-rows-btn">📋 複製選取列</button>
+        <button class="btn btn-sm btn-ghost" id="copy-cols-btn">📋 複製選取欄</button>
+        <span class="toolbar-hint">選取後按 Ctrl+C 亦可快速複製</span>
       </div>
 
       <div class="search-bar">
@@ -154,6 +158,9 @@
       </div>
       <div class="copy-toast hidden" id="copy-toast">已複製到剪貼簿！</div>
     </div>
+
+    <!-- Toast for table copy actions -->
+    <div class="table-toast hidden" id="copy-table-toast"></div>
 
   </main>
 
@@ -535,6 +542,13 @@
     copyCsvBtn.addEventListener('click', async () => {
       const delim = outDelimiter.value;
       const text  = buildCSV(delim);
+      await writeClipboard(text);
+      copyToast.classList.remove('hidden');
+      setTimeout(() => copyToast.classList.add('hidden'), 2000);
+    });
+
+    /* ── Clipboard helper ── */
+    async function writeClipboard(text) {
       try {
         await navigator.clipboard.writeText(text);
       } catch {
@@ -543,8 +557,69 @@
         ta.select(); document.execCommand('copy');
         document.body.removeChild(ta);
       }
-      copyToast.classList.remove('hidden');
-      setTimeout(() => copyToast.classList.add('hidden'), 2000);
+    }
+
+    /* ── Build partial CSV (rows or cols) ── */
+    function buildRowsCSV(rowIndices) {
+      const delim = ',';
+      function esc(v) {
+        const s = String(v ?? '');
+        return (s.includes(delim)||s.includes('"')||s.includes('\n')) ? '"'+s.replace(/"/g,'""')+'"' : s;
+      }
+      const sorted = [...rowIndices].sort((a,b) => a-b);
+      return sorted.map(i => csvData[i].map(esc).join(delim)).join('\r\n');
+    }
+
+    function buildColsCSV(colIndices) {
+      const delim = ',';
+      function esc(v) {
+        const s = String(v ?? '');
+        return (s.includes(delim)||s.includes('"')||s.includes('\n')) ? '"'+s.replace(/"/g,'""')+'"' : s;
+      }
+      const sorted = [...colIndices].sort((a,b) => a-b);
+      const allRows = headerMode ? [headers, ...csvData] : csvData;
+      return allRows.map(row => sorted.map(ci => esc(row[ci]??'')).join(delim)).join('\r\n');
+    }
+
+    /* ── Copy buttons ── */
+    const copyRowsBtn = document.getElementById('copy-rows-btn');
+    const copyColsBtn = document.getElementById('copy-cols-btn');
+    const copyTableToast = document.getElementById('copy-table-toast');
+
+    async function showTableToast(msg) {
+      copyTableToast.textContent = msg;
+      copyTableToast.classList.remove('hidden');
+      setTimeout(() => copyTableToast.classList.add('hidden'), 2000);
+    }
+
+    copyRowsBtn.addEventListener('click', async () => {
+      if (selectedRows.size === 0) { showTableToast('⚠ 請先點選列號來選取要複製的列'); return; }
+      await writeClipboard(buildRowsCSV(selectedRows));
+      showTableToast(`✔ 已複製 ${selectedRows.size} 列`);
+    });
+
+    copyColsBtn.addEventListener('click', async () => {
+      if (selectedCols.size === 0) { showTableToast('⚠ 請先點選欄標題來選取要複製的欄'); return; }
+      await writeClipboard(buildColsCSV(selectedCols));
+      showTableToast(`✔ 已複製 ${selectedCols.size} 欄`);
+    });
+
+    /* ── Global Ctrl+C handler ── */
+    document.addEventListener('keydown', async e => {
+      if (!e.ctrlKey || e.key !== 'c') return;
+      // Skip if user is editing a text field / contenteditable
+      const tag = document.activeElement?.tagName;
+      const ce  = document.activeElement?.contentEditable;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || ce === 'true') return;
+      if (selectedRows.size > 0) {
+        e.preventDefault();
+        await writeClipboard(buildRowsCSV(selectedRows));
+        showTableToast(`✔ 已複製 ${selectedRows.size} 列`);
+      } else if (selectedCols.size > 0) {
+        e.preventDefault();
+        await writeClipboard(buildColsCSV(selectedCols));
+        showTableToast(`✔ 已複製 ${selectedCols.size} 欄`);
+      }
     });
 
   })();

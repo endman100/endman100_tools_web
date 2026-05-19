@@ -28,99 +28,158 @@
   <section class="hero">
     <h1>工具合集</h1>
     <p>精心打造的實用小工具，讓你的工作流程更順暢。</p>
+    <div class="category-nav" aria-label="工具分類">
+      <a href="#ai-tools">AI / 語音</a>
+      <a href="#document-tools">文件 / 資料</a>
+      <a href="#image-tools">圖像 / 設計</a>
+      <a href="#media-tools">影音 / 社群</a>
+      <a href="#lab-tools">範例 / 實驗</a>
+    </div>
   </section>
 
-  <!-- Tools Grid -->
+  <!-- Tools Categories -->
   <section class="tools-section">
-    <div class="tools-grid">
-
-      <!-- Card: Kokoro TTS -->
-      <a href="tools/kokoro-tts/" class="tool-card">
-        <div class="tool-card-icon">🗣️</div>
-        <span class="tag">AI 語音</span>
-        <h3>Kokoro TTS</h3>
-        <p>82M 參數開源 TTS，9 種語言、54 個聲音，kokoro-js 純前端推理，自動偵測 WebGPU。首次下載約 85 MB，快取後可離線使用。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
+    <section class="category-block" id="ai-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">AI / Voice</span>
+          <h2>AI 與語音工具</h2>
         </div>
-      </a>
+        <p>文字轉語音、角色卡、ComfyUI workflow 與 AI 創作輔助。</p>
+      </div>
+      <div class="tools-grid">
 
-      <!-- Card: Supertonic TTS -->
-      <a href="tools/supertonic-tts/" class="tool-card">
-        <div class="tool-card-icon">🎤</div>
-        <span class="tag">AI 語音</span>
-        <h3>Supertonic TTS</h3>
-        <p>31 語言文字轉語音，ONNX Runtime Web 純前端推理，無需 GPU。首次使用需下載 ~400 MB 模型，快取後可離線使用。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
+        <!-- Card: Kokoro TTS -->
+        <a href="tools/kokoro-tts/" class="tool-card">
+          <div class="tool-card-icon">🗣️</div>
+          <span class="tag">AI 語音</span>
+          <h3>Kokoro TTS</h3>
+          <p>82M 參數開源 TTS，9 種語言、54 個聲音，kokoro-js 純前端推理，自動偵測 WebGPU。首次下載約 85 MB，快取後可離線使用。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
 
-      <!-- Card: Irodori TTS -->
-      <a href="tools/irodori-tts/" class="tool-card">
-        <div class="tool-card-icon">🎙️</div>
-        <span class="tag">AI 語音</span>
-        <h3>Irodori TTS</h3>
+        <!-- Card: Supertonic TTS -->
+        <a href="tools/supertonic-tts/" class="tool-card">
+          <div class="tool-card-icon">🎤</div>
+          <span class="tag">AI 語音</span>
+          <h3>Supertonic TTS</h3>
+          <p>31 語言文字轉語音，ONNX Runtime Web 純前端推理，無需 GPU。首次使用需下載 ~400 MB 模型，快取後可離線使用。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Card: Irodori TTS -->
+        <a href="tools/irodori-tts/" class="tool-card">
+          <div class="tool-card-icon">🎙️</div>
+          <span class="tag">AI 語音</span>
+          <h3>Irodori TTS</h3>
           <p>500M 參數日文 TTS，瀏覽器下載 ONNX 模型並本地推理，支援 emoji 風格與 reference audio。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
 
-      <!-- Card: ComfyUI Workflow Viewer -->
-      <a href="tools/comfyui-workflow/" class="tool-card">
-        <div class="tool-card-icon">🎨</div>
-        <span class="tag">AI 繪圖</span>
-        <h3>ComfyUI Workflow Viewer</h3>
-        <p>上傳 ComfyUI 產生的圖片，自動讀取嵌入的 Workflow JSON 並以語法高亮顯示。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
+        <!-- Card: ComfyUI Workflow Viewer -->
+        <a href="tools/comfyui-workflow/" class="tool-card">
+          <div class="tool-card-icon">🎨</div>
+          <span class="tag">AI 繪圖</span>
+          <h3>ComfyUI Workflow Viewer</h3>
+          <p>上傳 ComfyUI 產生的圖片，自動讀取嵌入的 Workflow JSON 並以語法高亮顯示。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
 
-      <!-- Card: SillyTavern PNG to JSON -->
-      <a href="tools/sillytavern-png2json/" class="tool-card">
-        <div class="tool-card-icon">🃏</div>
-        <span class="tag">AI 角色卡</span>
-        <h3>SillyTavern PNG ↔ JSON</h3>
-        <p>角色卡 PNG / JSON 雙向轉換、線上編輯、換圖輸出，支援 V1 / V2 格式。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
+        <!-- Card: SillyTavern PNG to JSON -->
+        <a href="tools/sillytavern-png2json/" class="tool-card">
+          <div class="tool-card-icon">🃏</div>
+          <span class="tag">AI 角色卡</span>
+          <h3>SillyTavern PNG ↔ JSON</h3>
+          <p>角色卡 PNG / JSON 雙向轉換、線上編輯、換圖輸出，支援 V1 / V2 格式。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+      </div>
+    </section>
 
-      <!-- Card: Hello World -->
-      <a href="tools/hello-world/" class="tool-card">
-        <div class="tool-card-icon">👋</div>
-        <span class="tag">範例</span>
-        <h3>Hello World</h3>
-        <p>一個簡單的範例工具頁面，用來展示工具頁的基本結構與互動。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
+    <section class="category-block" id="document-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">Documents / Data</span>
+          <h2>文件與資料處理</h2>
         </div>
-      </a>
+        <p>PDF、簽名、CSV、字幕、QR Code 這類工作流放在這裡。</p>
+      </div>
+      <div class="tools-grid">
 
-      <!-- Card: 更多工具（佔位） -->
-      <a href="tools/pdf-image-lab/" class="tool-card">
-        <div class="tool-card-icon">📄</div>
-        <span class="tag">PDF</span>
-        <h3>PDF Image Lab</h3>
-        <p>上傳 PDF，自動拆解為高品質圖片，拖曳重排後匯出新 PDF 或 ZIP。完全離線，隱私安全。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
+        <!-- Card: PDF Image Lab -->
+        <a href="tools/pdf-image-lab/" class="tool-card">
+          <div class="tool-card-icon">📄</div>
+          <span class="tag">PDF</span>
+          <h3>PDF Image Lab</h3>
+          <p>上傳 PDF，自動拆解為高品質圖片，拖曳重排後匯出新 PDF 或 ZIP。完全離線，隱私安全。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
 
-      <!-- Card: Doc Signer -->
-      <a href="tools/doc-signer/" class="tool-card">
-        <div class="tool-card-icon">✍️</div>
-        <span class="tag">文件簽名</span>
-        <h3>文件簽名工具</h3>
-        <p>上傳 JPG/PNG 圖片或 PDF，手寫簽名後匯出 PNG 或 PDF。支援多頁切換、平板觸控，完全離線處理。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
+        <!-- Card: Doc Signer -->
+        <a href="tools/doc-signer/" class="tool-card">
+          <div class="tool-card-icon">✍️</div>
+          <span class="tag">文件簽名</span>
+          <h3>文件簽名工具</h3>
+          <p>上傳 JPG/PNG 圖片或 PDF，手寫簽名後匯出 PNG 或 PDF。支援多頁切換、平板觸控，完全離線處理。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Card: QR Code 產生器 -->
+        <a href="tools/qrcode-generator/" class="tool-card">
+          <div class="tool-card-icon">📱</div>
+          <span class="tag">實用工具</span>
+          <h3>QR Code 產生器</h3>
+          <p>輸入文字或網址即時產生 QR Code，支援自訂尺寸、前景／背景色與糾錯等級，一鍵下載 PNG。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+
+        <!-- Card: 字幕轉換器 -->
+        <a href="tools/subtitle-converter/" class="tool-card">
+          <div class="tool-card-icon">📝</div>
+          <span class="tag">實用工具</span>
+          <h3>字幕格式轉換器</h3>
+          <p>SRT ↔ VTT ↔ ASS 字幕格式互轉，自動偵測來源格式，結果可複製或下載。純瀏覽器離線處理。</p>
+          <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
+        </a>
+
+        <!-- Card: CSV 閱讀器 -->
+        <a href="tools/csv-reader/" class="tool-card">
+          <div class="tool-card-icon">📊</div>
+          <span class="tag">實用工具</span>
+          <h3>CSV 閱讀器</h3>
+          <p>上傳 CSV 檔案，即時瀏覽並直接編輯儲存格，支援新增／刪除列欄、搜尋、排序，完成後下載為新 CSV。純離線處理。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="category-block" id="image-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">Image / Design</span>
+          <h2>圖像、設計與姿勢參考</h2>
         </div>
-      </a>
+        <p>圖片裁切、GIF、2D/3D 姿勢編輯與繪圖參考相關工具。</p>
+      </div>
+      <div class="tools-grid">
 
       <!-- Card: Sticker Cutter -->
       <a href="tools/sticker-cutter/" class="tool-card">
@@ -144,17 +203,6 @@
         </div>
       </a>
 
-      <!-- Card: QR Code 產生器 -->
-      <a href="tools/qrcode-generator/" class="tool-card">
-        <div class="tool-card-icon">📱</div>
-        <span class="tag">實用工具</span>
-        <h3>QR Code 產生器</h3>
-        <p>輸入文字或網址即時產生 QR Code，支援自訂尺寸、前景／背景色與糾錯等級，一鍵下載 PNG。</p>
-        <div class="tool-card-footer">
-          開啟工具 <span class="arrow">→</span>
-        </div>
-      </a>
-
       <!-- Card: 3D 角色動作編輯器 -->
       <a href="tools/3d-character-editor/" class="tool-card">
         <div class="tool-card-icon">🎭</div>
@@ -165,6 +213,27 @@
           開啟工具 <span class="arrow">→</span>
         </div>
       </a>
+
+      <!-- Card: GIF 產生器 -->
+      <a href="tools/gif-generator/" class="tool-card">
+        <div class="tool-card-icon">🖼️</div>
+        <span class="tag">圖片工具</span>
+        <h3>GIF 動圖產生器</h3>
+        <p>上傳多張圖片，設定每幀延遲與寬度，即時產生 GIF 動圖並下載。支援拖曳重排幀順序。</p>
+        <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
+      </a>
+      </div>
+    </section>
+
+    <section class="category-block" id="media-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">Media / Social</span>
+          <h2>影音與社群下載</h2>
+        </div>
+        <p>影片截圖、縮圖、音訊剪裁，以及各平台影片下載輔助。</p>
+      </div>
+      <div class="tools-grid">
 
       <!-- Card: 線上影片截圖工具 -->
       <a href="tools/video-frame-exporter/" class="tool-card">
@@ -251,31 +320,25 @@
         <p>上傳音訊檔，拖曳起始 / 結束點，即時波形預覽，一鍵匯出剪裁後的 WAV。完全離線。</p>
         <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
       </a>
+      </div>
+    </section>
 
-      <!-- Card: GIF 產生器 -->
-      <a href="tools/gif-generator/" class="tool-card">
-        <div class="tool-card-icon">🖼️</div>
-        <span class="tag">影音工具</span>
-        <h3>GIF 動圖產生器</h3>
-        <p>上傳多張圖片，設定每幀延遲與寬度，即時產生 GIF 動圖並下載。支援拖曳重排幀順序。</p>
-        <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
-      </a>
+    <section class="category-block" id="lab-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">Lab</span>
+          <h2>範例與實驗區</h2>
+        </div>
+        <p>基礎範例與之後新增工具的暫放位置。</p>
+      </div>
+      <div class="tools-grid">
 
-      <!-- Card: 字幕轉換器 -->
-      <a href="tools/subtitle-converter/" class="tool-card">
-        <div class="tool-card-icon">📝</div>
-        <span class="tag">實用工具</span>
-        <h3>字幕格式轉換器</h3>
-        <p>SRT ↔ VTT ↔ ASS 字幕格式互轉，自動偵測來源格式，結果可複製或下載。純瀏覽器離線處理。</p>
-        <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
-      </a>
-
-      <!-- Card: CSV 閱讀器 -->
-      <a href="tools/csv-reader/" class="tool-card">
-        <div class="tool-card-icon">📊</div>
-        <span class="tag">實用工具</span>
-        <h3>CSV 閱讀器</h3>
-        <p>上傳 CSV 檔案，即時瀏覽並直接編輯儲存格，支援新增／刪除列欄、搜尋、排序，完成後下載為新 CSV。純離線處理。</p>
+      <!-- Card: Hello World -->
+      <a href="tools/hello-world/" class="tool-card">
+        <div class="tool-card-icon">👋</div>
+        <span class="tag">範例</span>
+        <h3>Hello World</h3>
+        <p>一個簡單的範例工具頁面，用來展示工具頁的基本結構與互動。</p>
         <div class="tool-card-footer">
           開啟工具 <span class="arrow">→</span>
         </div>
@@ -289,7 +352,8 @@
         <p style="color: var(--text-muted);">持續開發中，敬請期待…</p>
       </div>
 
-    </div>
+      </div>
+    </section>
   </section>
 
   <!-- Footer -->

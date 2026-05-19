@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Irodori TTS — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Irodori TTS</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎙️</div>
+      <div>
+        <h1>Irodori TTS</h1>
+        <p>Aratako/Irodori-TTS-500M-v3 日文 TTS，瀏覽器端下載 ONNX 模型並以 ONNX Runtime Web 推理，支援 emoji 風格控制、no-reference 與 reference audio。</p>
+      </div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-badge loading" id="statusBadge">LOADING</span>
+        <span class="status-msg" id="statusMsg">Preparing ONNX Runtime Web…</span>
+        <span class="backend-badge remote" id="backendBadge">ONNX Web</span>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-meta">
+          <span id="progressLabel">Preparing model cache…</span>
+          <span id="progressMeta">--</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+      <div class="model-list">
+        <div class="model-item"><span class="dot pending" id="dot-runtime"></span>ONNX Runtime</div>
+        <div class="model-item"><span class="dot pending" id="dot-models"></span>Model download/cache</div>
+        <div class="model-item"><span class="dot pending" id="dot-output"></span>Audio outputs</div>
+      </div>
+    </div>
+
+    <div class="info-banner" style="margin-bottom:1.5rem">
+      <span class="bi">ℹ️</span>
+      <p>
+        模型來自 <a href="https://huggingface.co/Aratako/Irodori-TTS-500M-v3" target="_blank" rel="noopener">Aratako/Irodori-TTS-500M-v3</a>，ONNX 檔使用 <a href="https://huggingface.co/mtsmfm/Irodori-TTS-500M-v3-ONNX" target="_blank" rel="noopener">mtsmfm/Irodori-TTS-500M-v3-ONNX</a>。
+        本頁會像其他 TTS 工具一樣在瀏覽器下載模型並快取；基本生成首次下載約 <strong>2.4 GB</strong>，reference audio / auto duration 會再下載約 180 MB。需要 WebGPU 或大量記憶體。模型僅支援日文；複雜漢字建議改成假名以提升讀音穩定度。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 設定</div>
+
+      <div class="form-row">
+        <div class="form-group wide">
+          <label for="referenceAudio">Reference Audio Upload（可選，用於 voice cloning）</label>
+          <input type="file" id="referenceAudio" accept="audio/*" />
+        </div>
+        <div class="form-group compact">
+          <label for="numCandidatesInput">Num Candidates</label>
+          <input type="number" id="numCandidatesInput" value="1" min="1" max="32" step="1" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group compact">
+          <label for="numStepsInput">Num Steps</label>
+          <input type="number" id="numStepsInput" value="40" min="1" max="120" step="1" />
+        </div>
+        <div class="form-group compact">
+          <label for="seedInput">Seed（空白=random）</label>
+          <input type="text" id="seedInput" inputmode="numeric" placeholder="random" />
+        </div>
+        <div class="form-group compact">
+          <label for="secondsInput">Seconds（空白=auto）</label>
+          <input type="text" id="secondsInput" inputmode="decimal" placeholder="auto" />
+        </div>
+        <div class="form-group compact">
+          <label for="durationScaleInput">Duration Scale</label>
+          <input type="number" id="durationScaleInput" value="1.0" min="0.5" max="1.5" step="0.01" />
+        </div>
+      </div>
+
+      <details class="advanced-panel">
+        <summary>進階 CFG / Sampling 參數</summary>
+        <div class="form-row advanced-grid">
+          <div class="form-group">
+            <label for="cfgModeSel">CFG Guidance Mode</label>
+            <select id="cfgModeSel">
+              <option value="independent" selected>independent</option>
+              <option value="joint">joint</option>
+              <option value="alternating">alternating</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cfgScaleTextInput">CFG Scale Text</label>
+            <input type="number" id="cfgScaleTextInput" value="2.0" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgScaleSpeakerInput">CFG Scale Speaker</label>
+            <input type="number" id="cfgScaleSpeakerInput" value="0" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgOverrideInput">CFG Scale Override（可選）</label>
+            <input type="text" id="cfgOverrideInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="cfgMinTInput">CFG Min t</label>
+            <input type="number" id="cfgMinTInput" value="0.5" min="0" max="1" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label for="cfgMaxTInput">CFG Max t</label>
+            <input type="number" id="cfgMaxTInput" value="1" min="0" max="1" step="0.01" />
+          </div>
+          <div class="form-group check-group">
+            <label for="contextKvCacheInput">Context KV Cache</label>
+            <label class="toggle-line"><input type="checkbox" id="contextKvCacheInput" checked /> Enable cache</label>
+          </div>
+          <div class="form-group">
+            <label for="truncationFactorInput">Truncation Factor（可選）</label>
+            <input type="text" id="truncationFactorInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="rescaleKInput">Rescale k（可選）</label>
+            <input type="text" id="rescaleKInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="rescaleSigmaInput">Rescale sigma（可選）</label>
+            <input type="text" id="rescaleSigmaInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvScaleInput">Speaker KV Scale（可選）</label>
+            <input type="text" id="speakerKvScaleInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvMinTInput">Speaker KV Min t（可選）</label>
+            <input type="text" id="speakerKvMinTInput" inputmode="decimal" placeholder="optional" value="0.9" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvMaxLayersInput">Speaker KV Max Layers（可選）</label>
+            <input type="text" id="speakerKvMaxLayersInput" inputmode="numeric" placeholder="optional" />
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-title">② 輸入文字</div>
+      <div class="sample-row" aria-label="Sample prompts">
+        <button type="button" class="sample-chip" data-text="お電話ありがとうございます。ただいま電話が大変混み合っております。恐れ入りますが、発信音のあとに、ご用件をお話しください。">標準旁白</button>
+        <button type="button" class="sample-chip" data-text="うぅ…😭そんなに酷いこと、言わないで…😭">情緒 emoji</button>
+        <button type="button" class="sample-chip" data-text="🤧🤧ごめんね、風邪引いちゃってて🤧…大丈夫、ただの風邪だからすぐ治るよ🥺">音效 emoji</button>
+      </div>
+      <textarea id="textInput" placeholder="日本語テキストを入力してください。絵文字で感情や効果音を指定できます。">その森には、古い言い伝えがありました。月が最も高く昇る夜、静かに耳を澄ませば、風の歌声が聞こえるというのです。</textarea>
+      <div class="action-row">
+        <button class="btn btn-primary" id="generateBtn">🎙️ Generate</button>
+        <button class="btn btn-ghost" id="resetBtn" type="button">↺ Reset Params</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">③ 結果</div>
+      <div id="resultsArea">
+        <div class="results-placeholder">
+          <span class="icon">🎙️</span>
+          <p>Generated audio candidates will appear here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card log-card hidden" id="logCard">
+      <div class="card-title">Run Log</div>
+      <pre id="runLog"></pre>
+    </div>
+
+  </main>
+
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

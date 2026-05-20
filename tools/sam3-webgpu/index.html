@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAM3 WebGPU — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">AI</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">SAM3 WebGPU</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">S3</div>
+      <div>
+        <h1>SAM3 WebGPU</h1>
+        <p>純前端 SAM3 Tracker / Promptable Visual Segmentation。瀏覽器從 Hugging Face 下載 ONNX 權重，以 Transformers.js WebGPU 在本機產生互動式遮罩。</p>
+      </div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-badge info" id="statusBadge">READY</span>
+        <span class="status-msg" id="statusMsg">準備自動下載 / 載入 SAM3 Tracker WebGPU 權重。</span>
+        <span class="backend-badge" id="backendBadge">WebGPU</span>
+        <button type="button" class="pill-button" id="loadModelBtn">重新載入模型</button>
+        <button type="button" class="pill-button ghost" id="clearCacheBtn">清除 HF 快取</button>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-meta">
+          <span id="progressLabel">等待下載</span>
+          <span id="progressMeta">--</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+      <div class="model-list" id="fileList">
+        <div class="model-item"><span class="dot pending" id="dot-runtime"></span>Transformers.js runtime</div>
+        <div class="model-item"><span class="dot pending" id="dot-model"></span>onnx-community/sam3-tracker-ONNX</div>
+        <div class="model-item"><span class="dot pending" id="dot-image"></span>Image embedding</div>
+        <div class="model-item"><span class="dot pending" id="dot-mask"></span>Interactive mask</div>
+      </div>
+    </div>
+
+    <div class="info-banner">
+      <span class="bi">i</span>
+      <p>
+        模型來源為 <a href="https://huggingface.co/onnx-community/sam3-tracker-ONNX" target="_blank" rel="noopener">onnx-community/sam3-tracker-ONNX</a>，基底為 gated 的 <a href="https://huggingface.co/facebook/sam3" target="_blank" rel="noopener">facebook/sam3</a>。公開 WebGPU 權重約 <strong>5.49 GB</strong>，頁面會自動開始下載與初始化；快取後會沿用瀏覽器快取。官方 SAM3 文字概念分割與影片追蹤仍依賴 PyTorch/CUDA gated 權重，頁面下方有功能狀態矩陣。
+      </p>
+    </div>
+
+    <section class="workspace-grid">
+      <div class="stage-card">
+        <div class="card-title">① 影像與互動遮罩</div>
+        <div class="stage" id="stage">
+          <div class="upload-area" id="uploadArea">
+            <span class="upload-icon">+</span>
+            <strong>上傳圖片</strong>
+            <span>或拖曳圖片到這裡</span>
+            <div class="example-row" aria-label="範例圖片">
+              <button type="button" class="example-thumb" data-src="https://huggingface.co/datasets/hf-internal-testing/sam2-fixtures/resolve/main/truck.jpg">Truck</button>
+              <button type="button" class="example-thumb" data-src="https://huggingface.co/datasets/Xenova/transformers.js-docs/resolve/main/corgi.jpg">Corgi</button>
+              <button type="button" class="example-thumb" data-src="https://huggingface.co/datasets/hf-internal-testing/sam2-fixtures/resolve/main/groceries.jpg">Goods</button>
+            </div>
+          </div>
+          <img id="imageDisplay" alt="SAM3 input" draggable="false" />
+          <canvas id="maskCanvas"></canvas>
+          <canvas id="guideCanvas"></canvas>
+        </div>
+        <input id="imageInput" type="file" accept="image/*" />
+        <p class="stage-hint" id="stageHint">載入模型與圖片後，點擊影像加入正向點；右鍵或切換負向模式可排除區域。</p>
+      </div>
+
+      <aside class="control-card">
+        <div class="card-title">② 提示與輸出</div>
+
+        <div class="segmented" role="tablist" aria-label="Prompt mode">
+          <button type="button" class="segment active" data-mode="point">點選</button>
+          <button type="button" class="segment" data-mode="box">框選</button>
+          <button type="button" class="segment" data-mode="hover">預覽</button>
+        </div>
+
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="pointLabelSel">點選標籤</label>
+            <select id="pointLabelSel">
+              <option value="1" selected>正向點</option>
+              <option value="0">負向點</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="overlayAlphaInput">遮罩透明度</label>
+            <input type="range" id="overlayAlphaInput" min="20" max="95" value="62" />
+          </div>
+        </div>
+
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="maskColorInput">遮罩顏色</label>
+            <input type="color" id="maskColorInput" value="#0072bd" />
+          </div>
+          <div class="form-group">
+            <label for="scoreThresholdInput">Score 閾值</label>
+            <input type="number" id="scoreThresholdInput" min="0" max="1" step="0.01" value="0.5" />
+          </div>
+        </div>
+
+        <div class="metric-grid">
+          <div><span id="pointCount">0</span><small>Prompt points</small></div>
+          <div><span id="maskScore">--</span><small>Best IoU</small></div>
+          <div><span id="imageSize">--</span><small>Image size</small></div>
+        </div>
+
+        <div class="action-row">
+          <button type="button" class="btn btn-primary" id="decodeBtn" disabled>產生遮罩</button>
+          <button type="button" class="btn btn-ghost" id="clearPromptsBtn" disabled>清除提示</button>
+          <button type="button" class="btn btn-ghost" id="resetImageBtn" disabled>重設圖片</button>
+        </div>
+
+        <div class="action-row export-row">
+          <button type="button" class="btn btn-primary" id="downloadCutoutBtn" disabled>下載去背 PNG</button>
+          <button type="button" class="btn btn-ghost" id="downloadMaskBtn" disabled>下載遮罩</button>
+          <button type="button" class="btn btn-ghost" id="downloadOverlayBtn" disabled>下載疊圖</button>
+        </div>
+      </aside>
+    </section>
+
+    <section class="card feature-card">
+      <div class="card-title">③ 官方 SAM3 功能狀態</div>
+      <div class="feature-grid" id="featureGrid">
+        <div class="feature-item available"><strong>PVS Image：點選 / 多點 refine</strong><span>已實作，使用公開 SAM3 Tracker ONNX + WebGPU。</span></div>
+        <div class="feature-item available"><strong>PVS Image：Box prompt</strong><span>已實作，框選後以官方 processor 格式推理。</span></div>
+        <div class="feature-item available"><strong>Mask cutout / export</strong><span>已實作遮罩、疊圖、透明 PNG 匯出。</span></div>
+        <div class="feature-item limited"><strong>PCS Image：文字概念分割</strong><span>官方權重 gated，沒有公開 Transformers.js/WebGPU ONNX 權重。</span></div>
+        <div class="feature-item limited"><strong>PCS/PVS Video tracking</strong><span>官方流程需要 PyTorch/CUDA session，目前無可直接瀏覽器載入的官方 WebGPU 權重。</span></div>
+        <div class="feature-item limited"><strong>SAM3.1 Object Multiplex</strong><span>SAM3.1 HF 倉庫僅 checkpoint，官方註明沒有 Transformers integration。</span></div>
+      </div>
+    </section>
+
+    <section class="card log-card hidden" id="logCard">
+      <div class="card-title">Run Log</div>
+      <pre id="runLog"></pre>
+    </section>
+  </main>
+
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

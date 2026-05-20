@@ -30,6 +30,7 @@
     <p>精心打造的實用小工具，讓你的工作流程更順暢。</p>
     <div class="category-nav" aria-label="工具分類">
       <a href="#ai-tools">AI / 語音</a>
+      <a href="#api-tools">API 類工具</a>
       <a href="#document-tools">文件 / 資料</a>
       <a href="#image-tools">圖像 / 設計</a>
       <a href="#media-tools">影音 / 社群</a>
@@ -82,6 +83,17 @@
           </div>
         </a>
 
+        <!-- Card: SAM3 WebGPU -->
+        <a href="tools/sam3-webgpu/" class="tool-card">
+          <div class="tool-card-icon">S3</div>
+          <span class="tag">AI 分割</span>
+          <h3>SAM3 WebGPU</h3>
+          <p>純前端 SAM3 Tracker 影像分割，從 Hugging Face 下載 ONNX 權重並用 WebGPU 互動產生遮罩、去背與疊圖。</p>
+          <div class="tool-card-footer">
+            開啟工具 <span class="arrow">→</span>
+          </div>
+        </a>
+
         <!-- Card: ComfyUI Workflow Viewer -->
         <a href="tools/comfyui-workflow/" class="tool-card">
           <div class="tool-card-icon">🎨</div>
@@ -104,6 +116,17 @@
           </div>
         </a>
       </div>
+    </section>
+
+    <section class="category-block" id="api-tools">
+      <div class="category-header">
+        <div>
+          <span class="category-kicker">API Connectors</span>
+          <h2>API 類工具</h2>
+        </div>
+        <p>LLM、多模態、生圖、影片、語音與 STT/TTS 服務的純前端 API 呼叫面板。</p>
+      </div>
+      <div class="tools-grid" id="apiToolsGrid"></div>
     </section>
 
     <section class="category-block" id="document-tools">
@@ -360,6 +383,74 @@
   <footer class="footer">
     &copy; 2026 Endman100 Tools &mdash; Built with ❤️
   </footer>
+
+  <script>
+    const apiToolCards = [
+      ['openai', 'OpenAI API', 'LLM', 'OpenAI chat completions tool，支援模型、system prompt、temperature 與 max tokens。'],
+      ['anthropic', 'Anthropic Claude API', 'LLM', 'Claude messages API tool，支援 system prompt 與 Anthropic version header。'],
+      ['google-gemini', 'Google Gemini API', 'LLM', 'Gemini generateContent tool，使用 Google API key query 參數呼叫。'],
+      ['mistral', 'Mistral AI API', 'LLM', 'Mistral chat completions tool，採 OpenAI 相容 request 格式。'],
+      ['xai-grok', 'xAI Grok API', 'LLM', 'Grok chat completions tool，採 OpenAI 相容 request 格式。'],
+      ['cohere', 'Cohere API', 'LLM', 'Cohere v2 chat tool，獨立欄位與 Cohere request body。'],
+      ['perplexity', 'Perplexity Sonar API', 'LLM', 'Sonar chat completions tool，適合搜尋增強回答測試。'],
+      ['deepseek', 'DeepSeek API', 'LLM', 'DeepSeek chat completions tool，採相容 request 格式。'],
+      ['qwen-dashscope', 'Alibaba Qwen / DashScope', 'LLM', 'DashScope compatible-mode chat tool，支援 Qwen 模型。'],
+      ['moonshot-kimi', 'Moonshot AI / Kimi API', 'LLM', 'Kimi chat completions tool，使用 Moonshot endpoint。'],
+      ['minimax', 'MiniMax API', 'LLM', 'MiniMax text chatcompletion tool，含 Group ID 選填欄位。'],
+      ['aws-bedrock', 'AWS Bedrock', 'LLM', 'Bedrock InvokeModel tool，前端 SigV4 簽署與 region/model 欄位。'],
+      ['azure-ai-foundry', 'Azure AI Foundry', 'LLM', 'Azure deployment chat tool，支援 resource endpoint、deployment 與 api-version。'],
+      ['vertex-ai', 'Google Cloud Vertex AI', 'LLM', 'Vertex Gemini generateContent tool，使用 OAuth access token。'],
+
+      ['openai-images', 'OpenAI Images API', '生圖', 'OpenAI images generations tool，支援 prompt、size 與張數。'],
+      ['google-imagen', 'Google Imagen / Gemini Image', '生圖', 'Google Imagen predict tool，支援 sample count 與 aspect ratio。'],
+      ['nano-banana', 'Nano Banana Image API', '生圖', 'Nano Banana 圖像生成 / 編輯 tool，獨立於 Banana2。'],
+      ['banana2', 'Banana2 Image API', '生圖', 'Banana2 圖像生成 / 編輯 tool，獨立於 Nano Banana。'],
+      ['stability', 'Stability AI API', '生圖', 'Stability core image generation tool，使用 multipart form request。'],
+      ['black-forest-labs', 'Black Forest Labs / FLUX API', '生圖', 'FLUX image tool，支援 steps 與 prompt upsampling request。'],
+      ['fal-ai-image', 'fal.ai', '生圖', 'fal.ai image tool，model path 可直接切換不同 fal endpoint。'],
+      ['replicate-image', 'Replicate', '生圖', 'Replicate prediction image tool，支援 prompt 與參考圖片 URL。'],
+      ['ideogram', 'Ideogram API', '生圖', 'Ideogram v3 generate tool，含 aspect ratio 與張數欄位。'],
+      ['luma-image', 'Luma AI API', '生圖', 'Luma Photon image generation tool，與 Dream Machine video 分開。'],
+      ['runware', 'Runware', '生圖', 'Runware imageInference tool，送出 task UUID 與模型設定。'],
+      ['segmind', 'Segmind', '生圖', 'Segmind image tool，支援 negative prompt 與 inference steps。'],
+
+      ['runway', 'Runway API', '影片', 'Runway text-to-video tool，含 model、duration、ratio 與版本 header。'],
+      ['luma-dream-machine', 'Luma Dream Machine API', '影片', 'Luma Dream Machine video tool，獨立於 Luma image。'],
+      ['fal-ai-video', 'fal.ai Video API', '影片', 'fal.ai video tool，支援 image URL、duration 與 aspect ratio。'],
+      ['kling', 'Kling AI API', '影片', 'Kling text-to-video tool，含 duration 與 aspect ratio 欄位。'],
+      ['pika', 'Pika API', '影片', 'Pika generate tool，支援文字與參考圖影片生成。'],
+      ['heygen', 'HeyGen API', '影片', 'HeyGen avatar video generation tool，使用 avatar 與文字輸入。'],
+      ['hedra', 'Hedra API', '影片', 'Hedra generation tool，支援 prompt、參考圖片與 duration。'],
+      ['minimax-video', 'MiniMax Video API', '影片', 'MiniMax video_generation tool，與 MiniMax chat 分開。'],
+      ['replicate-video', 'Replicate Video Models', '影片', 'Replicate video prediction tool，支援影片模型與 prompt。'],
+
+      ['openai-audio-tts', 'OpenAI Audio TTS API', '語音', 'OpenAI text-to-speech tool，獨立於 STT。'],
+      ['openai-audio-stt', 'OpenAI Audio STT API', '語音', 'OpenAI speech-to-text transcription tool，獨立於 TTS。'],
+      ['elevenlabs', 'ElevenLabs API', '語音', 'ElevenLabs text-to-speech tool，支援 voice ID 與 model。'],
+      ['deepgram', 'Deepgram API', '語音', 'Deepgram listen STT tool，支援音訊檔與 language。'],
+      ['assemblyai', 'AssemblyAI API', '語音', 'AssemblyAI transcript tool，使用 audio URL 建立轉錄任務。'],
+      ['hume', 'Hume AI API', '語音', 'Hume TTS tool，支援 utterances 與 voice 設定。'],
+      ['cartesia', 'Cartesia API', '語音', 'Cartesia TTS bytes tool，支援 sonic model 與音訊格式。'],
+      ['playht', 'PlayHT API', '語音', 'PlayHT streaming TTS tool，使用 secret key 與 user ID。'],
+      ['google-stt', 'Google Cloud Speech-to-Text', '語音', 'Google Speech recognize tool，支援音訊內容與語言代碼。'],
+      ['google-tts', 'Google Cloud Text-to-Speech', '語音', 'Google text:synthesize tool，支援 voice 與 audioEncoding。'],
+      ['azure-speech', 'Azure AI Speech', '語音', 'Azure Speech TTS tool，支援 region、voice 與 SSML request。'],
+    ];
+
+    const apiIcons = { LLM: '🧠', '生圖': '🎨', '影片': '🎬', '語音': '🎙️' };
+    const apiToolsGrid = document.getElementById('apiToolsGrid');
+    if (apiToolsGrid) {
+      apiToolsGrid.innerHTML = apiToolCards.map(([id, title, tag, description]) => `
+        <a href="tools/API-${id}/" class="tool-card">
+          <div class="tool-card-icon">${apiIcons[tag] || '🔌'}</div>
+          <span class="tag">API ${tag}</span>
+          <h3>${title}</h3>
+          <p>${description} API key 儲存在瀏覽器 cookie，可清除此 tool 的 key。</p>
+          <div class="tool-card-footer">開啟工具 <span class="arrow">→</span></div>
+        </a>
+      `).join('');
+    }
+  </script>
 
 </body>
 </html>

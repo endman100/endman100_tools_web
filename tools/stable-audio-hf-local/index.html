@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stable Audio HF Local — Endman100 Tools</title>
+  <link rel="stylesheet" href="../../index.css">
+  <link rel="stylesheet" href="./style.css">
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/ort.min.js"></script>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-content">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">HF</span>
+        <span>Endman100 Tools</span>
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">HF Local Audio</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-container wide">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <header class="tool-page-header compact">
+      <span class="icon">SA3</span>
+      <div>
+        <h1>Stable Audio HF Local</h1>
+        <p>純前端 Hugging Face 模型執行工作台：瀏覽器下載模型權重，使用 WebGPU / WASM 在本機產生音訊。</p>
+      </div>
+    </header>
+
+    <section class="status-card" aria-live="polite">
+      <div class="status-main">
+        <span class="status-badge info" id="statusBadge">INFO</span>
+        <span class="status-msg" id="statusMsg">準備載入 Hugging Face 瀏覽器本地模型。</span>
+        <span class="backend-badge" id="backendBadge">WebGPU / WASM</span>
+      </div>
+      <div class="model-status-grid">
+        <div class="model-item"><span class="dot pending" id="dot-runtime"></span>Runtime</div>
+        <div class="model-item"><span class="dot pending" id="dot-model"></span>Model weights</div>
+        <div class="model-item"><span class="dot pending" id="dot-generate"></span>Generated WAV</div>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-top">
+          <span id="progressLabel">Idle</span>
+          <span id="progressMeta">0%</span>
+        </div>
+        <div class="progress-bar"><div id="progressFill"></div></div>
+      </div>
+    </section>
+
+    <section class="info-banner">
+      <span class="info-icon">i</span>
+      <p>
+        Stable Audio 3 官方前端可行路徑是 <a href="https://huggingface.co/stabilityai/stable-audio-3-optimized" target="_blank" rel="noopener">stabilityai/stable-audio-3-optimized</a> 的 ONNX 權重。這些權重很大：T5Gemma 約 1.07 GB、Small DiT 約 1.75 GB、SAME-S decoder 約 205 MB，首次執行會花時間下載並吃記憶體。MusicGen Small 是 Transformers.js 相容模型，保留作為可快速驗證的瀏覽器本地 text-to-audio 路徑。
+      </p>
+    </section>
+
+    <section class="tool-card-panel">
+      <div class="card-title">① Model Runtime</div>
+      <div class="form-grid">
+        <label>
+          <span>Model</span>
+          <select id="modelSelect" aria-label="Model">
+            <option value="sa3-sm-music">Stable Audio 3 Small Music ONNX</option>
+            <option value="sa3-sm-sfx">Stable Audio 3 Small SFX ONNX</option>
+            <option value="musicgen-small">MusicGen Small Transformers.js</option>
+          </select>
+        </label>
+        <label>
+          <span>Device</span>
+          <select id="deviceSelect" aria-label="Device">
+            <option value="webgpu">WebGPU first</option>
+            <option value="wasm">WASM CPU</option>
+          </select>
+        </label>
+        <label>
+          <span>HF access token</span>
+          <input id="hfTokenInput" type="password" placeholder="Optional for gated tokenizer/model access" autocomplete="off">
+        </label>
+        <div class="actions-inline button-stack">
+          <button class="btn btn-ghost" id="loadBtn" type="button">Load Model</button>
+          <button class="btn btn-danger" id="clearCacheBtn" type="button">Clear Cache</button>
+        </div>
+      </div>
+      <details class="advanced-panel">
+        <summary>Model files</summary>
+        <div class="advanced-grid">
+          <label class="full-field">
+            <span>Model repository</span>
+            <input id="repoInput" type="text" readonly>
+          </label>
+          <label class="full-field">
+            <span>Runtime notes</span>
+            <input id="notesInput" type="text" readonly>
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <section class="tool-card-panel">
+      <div class="card-title">② Generation</div>
+      <div class="form-grid">
+        <label>
+          <span>Duration seconds</span>
+          <input id="durationInput" type="number" min="1" max="11" step="1" value="3">
+        </label>
+        <label>
+          <span>Steps / tokens</span>
+          <input id="stepsInput" type="number" min="1" max="8" step="1" value="4">
+        </label>
+        <label>
+          <span>CFG / guidance</span>
+          <input id="cfgInput" type="number" min="1" max="8" step="0.5" value="1">
+        </label>
+        <label>
+          <span>Seed</span>
+          <input id="seedInput" type="text" placeholder="Random if empty">
+        </label>
+      </div>
+    </section>
+
+    <section class="tool-card-panel prompt-panel">
+      <div class="card-title">③ Prompt</div>
+      <div class="sample-row" aria-label="Sample prompts">
+        <button type="button" class="sample-chip" data-text="Impending tribal, epic orchestral buildup with huge drums, tense strings, and a dramatic final hit.">SA3 demo</button>
+        <button type="button" class="sample-chip" data-text="A short retro synthwave loop with warm analog bass, bright arpeggios, and punchy drums.">Synth loop</button>
+        <button type="button" class="sample-chip" data-text="Cinematic riser sound effect, metallic impacts, deep sub bass, and sparkling high frequency details.">SFX riser</button>
+      </div>
+      <textarea id="promptInput" rows="5" aria-label="Prompt">Impending tribal, epic orchestral buildup with huge drums, tense strings, and a dramatic final hit.</textarea>
+      <div class="actions-inline">
+        <button class="btn btn-primary" id="generateBtn" type="button">Generate Audio</button>
+        <button class="btn btn-ghost" id="resetBtn" type="button">Reset</button>
+      </div>
+    </section>
+
+    <section class="tool-card-panel results-card">
+      <div class="card-title">④ Result</div>
+      <div id="resultsArea" class="results-placeholder">
+        <span class="icon">WAV</span>
+        <p>生成完成後會在這裡播放與下載。</p>
+      </div>
+    </section>
+
+    <section class="tool-card-panel log-card hidden" id="logCard">
+      <div class="card-title">Run Log</div>
+      <pre id="runLog"></pre>
+    </section>
+  </main>
+
+  <script src="./index.js"></script>
+</body>
+</html>

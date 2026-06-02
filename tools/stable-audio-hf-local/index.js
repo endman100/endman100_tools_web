@@ -2,8 +2,9 @@ const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers
 const ORT_CDN = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.2/dist/';
 const HF_RESOLVE = 'https://huggingface.co/{repo}/resolve/main/{path}';
 const HF_COOKIE = 'endman_hf_access_token';
+const MANIFEST_URL = './model-manifest.json';
 
-const MODEL_PRESETS = {
+let MODEL_PRESETS = {
   'sa3-sm-music': {
     label: 'Stable Audio 3 Small Music ONNX',
     engine: 'sa3-onnx',
@@ -11,7 +12,10 @@ const MODEL_PRESETS = {
     ditPath: 'onnx/sa3-sm-music/dit.onnx',
     decoderPath: 'onnx/same-s/dec_dynamic_bf16.onnx',
     textEncoderPath: 'onnx/t5gemma/encoder.onnx',
-    tokenizerId: 'google/t5gemma-b-b-ul2',
+    tokenizerId: '{repo}',
+    tokenizerPath: 'tensorRT/sm_90/t5gemma/tokenizer.json',
+    tokenizerSubfolder: 'tensorRT/sm_90/t5gemma',
+    tokenizerFallbackId: 'google/t5gemma-b-b-ul2',
     maxDuration: 11,
     defaultDuration: 3,
     defaultSteps: 2,
@@ -26,7 +30,10 @@ const MODEL_PRESETS = {
     ditPath: 'onnx/sa3-sm-sfx/dit.onnx',
     decoderPath: 'onnx/same-s/dec_dynamic_bf16.onnx',
     textEncoderPath: 'onnx/t5gemma/encoder.onnx',
-    tokenizerId: 'google/t5gemma-b-b-ul2',
+    tokenizerId: '{repo}',
+    tokenizerPath: 'tensorRT/sm_90/t5gemma/tokenizer.json',
+    tokenizerSubfolder: 'tensorRT/sm_90/t5gemma',
+    tokenizerFallbackId: 'google/t5gemma-b-b-ul2',
     maxDuration: 11,
     defaultDuration: 3,
     defaultSteps: 2,
@@ -69,6 +76,7 @@ const refs = {
   deviceSelect: document.getElementById('deviceSelect'),
   hfTokenInput: document.getElementById('hfTokenInput'),
   loadBtn: document.getElementById('loadBtn'),
+  validateBtn: document.getElementById('validateBtn'),
   clearCacheBtn: document.getElementById('clearCacheBtn'),
   repoInput: document.getElementById('repoInput'),
   notesInput: document.getElementById('notesInput'),
@@ -96,6 +104,7 @@ const modelState = {
 
 let audioUrl = null;
 let abortController = null;
+let loadedManifest = null;
 
 function setStatus(type, message) {
   refs.statusBadge.className = `status-badge ${type}`;
@@ -125,13 +134,20 @@ function logLine(message) {
   refs.runLog.scrollTop = refs.runLog.scrollHeight;
 }
 
-function selectedPreset() {
+function selectedBasePreset() {
   return MODEL_PRESETS[refs.modelSelect.value] || MODEL_PRESETS['sa3-sm-music'];
 }
 
-function updateModelUi(resetValues = true) {
-  const preset = selectedPreset();
-  refs.repoInput.value = preset.repo;
+function selectedPreset() {
+  const preset = { ...selectedBasePreset() };
+  const repo = refs.repoInput?.value.trim();
+  if (preset.engine === 'sa3-onnx' && repo) preset.repo = repo;
+  return preset;
+}
+
+function updateModelUi(resetValues = true, resetRepo = true) {
+  const preset = selectedBasePreset();
+  if (resetRepo) refs.repoInput.value = preset.repo;
   refs.notesInput.value = preset.notes;
   refs.durationInput.max = String(preset.maxDuration);
   refs.stepsInput.max = String(preset.maxSteps);
@@ -146,7 +162,25 @@ function updateModelUi(resetValues = true) {
   }
 
   if (modelState.key !== refs.modelSelect.value) unloadModel(false);
-  setStatus('info', `Selected ${preset.label}.`);
+  const manifestText = loadedManifest?.generatedAt ? ` Manifest ${loadedManifest.generatedAt}.` : '';
+  setStatus('info', `Selected ${preset.label}.${manifestText}`);
+}
+
+async function loadModelManifest() {
+  try {
+    const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+    const manifest = await response.json();
+    if (manifest?.presets && typeof manifest.presets === 'object') {
+      for (const [key, value] of Object.entries(manifest.presets)) {
+        if (MODEL_PRESETS[key]) MODEL_PRESETS[key] = { ...MODEL_PRESETS[key], ...value };
+      }
+    }
+    loadedManifest = manifest;
+  } catch (error) {
+    loadedManifest = null;
+    logLine(`[manifest] using built-in defaults: ${error.message}`);
+  }
 }
 
 function saveToken() {
@@ -209,6 +243,10 @@ function providers() {
 
 function hfUrl(repo, path) {
   return HF_RESOLVE.replace('{repo}', repo).replace('{path}', path.split('/').map(encodeURIComponent).join('/'));
+}
+
+function tokenizerRepoForPreset(preset) {
+  return preset.tokenizerId === '{repo}' ? preset.repo : (preset.tokenizerId || preset.repo);
 }
 
 function authHeaders() {
@@ -277,7 +315,10 @@ async function loadModel() {
 
   try {
     if (preset.engine === 'transformers-js') await loadMusicGen(preset);
-    else await loadStableAudio3Onnx(preset);
+    else {
+      await preflightStableAudio3Files(preset);
+      await loadStableAudio3Onnx(preset);
+    }
     modelState.key = refs.modelSelect.value;
     modelState.preset = preset;
     setDot(refs.dotModel, 'done');
@@ -294,6 +335,47 @@ async function loadModel() {
     refs.generateBtn.disabled = false;
     abortController = null;
   }
+}
+
+async function validateModelFiles() {
+  const preset = selectedPreset();
+  abortController = new AbortController();
+  refs.validateBtn.disabled = true;
+  setStatus('loading', `Checking ${preset.repo || preset.modelId}...`);
+  try {
+    if (preset.engine === 'transformers-js') {
+      await probeHfFile(preset.repo, 'config.json', preset.label);
+    } else {
+      await preflightStableAudio3Files(preset);
+    }
+    setStatus('success', 'Required remote model files are reachable.');
+    setProgress('Validated model files', preset.repo || preset.modelId, 100);
+  } catch (error) {
+    console.error(error);
+    setStatus('error', error.message);
+    logLine(`[validate] ${error.message}`);
+  } finally {
+    refs.validateBtn.disabled = false;
+    abortController = null;
+  }
+}
+
+async function preflightStableAudio3Files(preset) {
+  if (!preset.repo) throw new Error('HF model repository is required.');
+  const files = [
+    ['T5Gemma encoder ONNX', preset.textEncoderPath],
+    ['SA3 DiT ONNX', preset.ditPath],
+    ['SAME-S decoder ONNX', preset.decoderPath],
+  ];
+  for (let index = 0; index < files.length; index++) {
+    const [label, path] = files[index];
+    setProgress(`Checking ${label}`, path, 4 + index * 4);
+    await probeHfFile(preset.repo, path, label);
+  }
+  const tokenizerRepo = tokenizerRepoForPreset(preset);
+  const tokenizerPath = preset.tokenizerPath || 'tokenizer_config.json';
+  setProgress('Checking tokenizer access', tokenizerRepo, 16);
+  await probeHfFile(tokenizerRepo, tokenizerPath, 'T5Gemma tokenizer');
 }
 
 async function loadMusicGen(preset) {
@@ -338,22 +420,52 @@ async function loadStableAudio3Onnx(preset) {
 }
 
 async function loadSa3Tokenizer(preset) {
-  const { AutoTokenizer, env } = await ensureTransformers();
+  const { PreTrainedTokenizer, env } = await ensureTransformers();
   configureTransformersHub(env);
-  setProgress('Loading T5Gemma tokenizer', preset.tokenizerId, 8);
-  await assertHfFileAccessible(preset.tokenizerId, 'tokenizer_config.json', 'T5Gemma tokenizer');
+  const tokenizerRepo = tokenizerRepoForPreset(preset);
+  const tokenizerPath = preset.tokenizerPath || 'tokenizer_config.json';
+  setProgress('Loading T5Gemma tokenizer', tokenizerRepo, 8);
+  await probeHfFile(tokenizerRepo, tokenizerPath, 'T5Gemma tokenizer');
   try {
-    return await AutoTokenizer.from_pretrained(preset.tokenizerId, { legacy: false });
+    const tokenizerJson = await fetchHfJson(tokenizerRepo, tokenizerPath, 'T5Gemma tokenizer');
+    return new PreTrainedTokenizer(tokenizerJson, {
+      tokenizer_class: 'GemmaTokenizer',
+      model_max_length: 2048,
+      bos_token: '<bos>',
+      eos_token: '<eos>',
+      unk_token: '<unk>',
+      pad_token: '<pad>',
+      padding_side: 'right',
+    });
   } catch (error) {
-    throw new Error(`T5Gemma tokenizer load failed. If Hugging Face asks for license acceptance, accept it and paste an HF token. Details: ${error.message}`);
+    throw new Error(`T5Gemma tokenizer load failed from ${tokenizerRepo}/${tokenizerPath}. Details: ${error.message}`);
   }
 }
 
-async function assertHfFileAccessible(repo, path, label) {
+async function fetchHfJson(repo, path, label) {
   const response = await fetch(hfUrl(repo, path), {
     headers: authHeaders(),
     signal: abortController?.signal,
   });
+  if (response.status === 401 || response.status === 403) {
+    throw new Error(`${label} requires Hugging Face access. Accept the model license on Hugging Face, then paste an HF access token here.`);
+  }
+  if (!response.ok) throw new Error(`${label} JSON fetch failed: ${response.status} ${response.statusText}`);
+  return response.json();
+}
+
+async function probeHfFile(repo, path, label) {
+  let response = await fetch(hfUrl(repo, path), {
+    method: 'HEAD',
+    headers: authHeaders(),
+    signal: abortController?.signal,
+  });
+  if (response.status === 405 || response.status === 501) {
+    response = await fetch(hfUrl(repo, path), {
+      headers: { ...authHeaders(), Range: 'bytes=0-0' },
+      signal: abortController?.signal,
+    });
+  }
   if (response.status === 401 || response.status === 403) {
     throw new Error(`${label} requires Hugging Face access. Accept the model license on Hugging Face, then paste an HF access token here.`);
   }
@@ -758,8 +870,10 @@ function resetForm() {
 function attachEvents() {
   refs.modelSelect.addEventListener('change', () => updateModelUi(true));
   refs.deviceSelect.addEventListener('change', () => unloadModel());
+  refs.repoInput.addEventListener('change', () => unloadModel());
   refs.hfTokenInput.addEventListener('change', saveToken);
   refs.loadBtn.addEventListener('click', loadModel);
+  refs.validateBtn.addEventListener('click', validateModelFiles);
   refs.generateBtn.addEventListener('click', generateAudio);
   refs.resetBtn.addEventListener('click', resetForm);
   refs.clearCacheBtn.addEventListener('click', clearModelCache);
@@ -771,9 +885,18 @@ function attachEvents() {
   });
 }
 
-attachEvents();
-loadToken();
-refs.deviceSelect.value = navigator.gpu ? 'webgpu' : 'wasm';
-updateModelUi(true);
-setDot(refs.dotRuntime, window.ort ? 'done' : 'error');
-setStatus('info', 'HF local audio runtime ready.');
+async function init() {
+  await loadModelManifest();
+  attachEvents();
+  loadToken();
+  refs.deviceSelect.value = navigator.gpu ? 'webgpu' : 'wasm';
+  updateModelUi(true);
+  setDot(refs.dotRuntime, window.ort ? 'done' : 'error');
+  setStatus('info', 'HF local audio runtime ready.');
+}
+
+init().catch(error => {
+  console.error(error);
+  setStatus('error', error.message);
+  logLine(`[init] ${error.message}`);
+});

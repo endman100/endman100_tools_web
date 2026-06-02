@@ -59,7 +59,7 @@
     <section class="info-banner">
       <span class="info-icon">i</span>
       <p>
-        Stable Audio 3 官方前端可行路徑是 <a href="https://huggingface.co/stabilityai/stable-audio-3-optimized" target="_blank" rel="noopener">stabilityai/stable-audio-3-optimized</a> 的 ONNX 權重。這些權重很大：T5Gemma 約 1.07 GB、Small DiT 約 1.75 GB、SAME-S decoder 約 205 MB，首次執行會花時間下載並吃記憶體。MusicGen Small 是 Transformers.js 相容模型，保留作為可快速驗證的瀏覽器本地 text-to-audio 路徑。
+        Stable Audio 3 官方前端可行路徑是 <a href="https://huggingface.co/stabilityai/stable-audio-3-optimized" target="_blank" rel="noopener">stabilityai/stable-audio-3-optimized</a> 的 ONNX 權重，也可以改填你用腳本 mirror 後的 Hugging Face repo。這些權重很大：T5Gemma、Small DiT、SAME-S decoder 首次執行會花時間下載並吃記憶體。MusicGen Small 是 Transformers.js 相容模型，保留作為快速驗證的瀏覽器本地 text-to-audio 路徑。
       </p>
     </section>
 
@@ -87,6 +87,7 @@
         </label>
         <div class="actions-inline button-stack">
           <button class="btn btn-ghost" id="loadBtn" type="button">Load Model</button>
+          <button class="btn btn-ghost" id="validateBtn" type="button">Validate Files</button>
           <button class="btn btn-danger" id="clearCacheBtn" type="button">Clear Cache</button>
         </div>
       </div>
@@ -94,8 +95,8 @@
         <summary>Model files</summary>
         <div class="advanced-grid">
           <label class="full-field">
-            <span>Model repository</span>
-            <input id="repoInput" type="text" readonly>
+            <span>HF model repository</span>
+            <input id="repoInput" type="text" placeholder="username/stable-audio-3-web-onnx">
           </label>
           <label class="full-field">
             <span>Runtime notes</span>

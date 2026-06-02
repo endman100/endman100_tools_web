@@ -1,0 +1,10 @@
+tools/stable-audio-hf-local/vendor/
+tools/stable-audio-hf-local/artifacts/
+tools/stable-audio-hf-local/models/
+tools/stable-audio-hf-local/**/*.onnx
+tools/stable-audio-hf-local/**/*.safetensors
+tools/stable-audio-hf-local/**/*.ckpt
+tools/stable-audio-hf-local/**/*.pt
+tools/stable-audio-hf-local/**/*.pth
+tools/stable-audio-hf-local/**/*.npz
+*.pyc

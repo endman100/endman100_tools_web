@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "name": "Stable Audio 3 browser ONNX pack",
+  "sourceRepo": "stabilityai/stable-audio-3-optimized",
+  "stableAudioRepo": "https://github.com/Stability-AI/stable-audio-3.git",
+  "note": "The official stable-audio-3 source repo does not currently include a generic ONNX exporter. This manifest points the browser at Stability AI's official pre-converted ONNX artifacts, or at a mirrored Hugging Face repo with the same paths.",
+  "requiredFiles": [
+    "onnx/t5gemma/encoder.onnx",
+    "onnx/sa3-sm-music/dit.onnx",
+    "onnx/sa3-sm-sfx/dit.onnx",
+    "onnx/same-s/dec_dynamic_bf16.onnx",
+    "tensorRT/sm_90/t5gemma/tokenizer.json"
+  ],
+  "presets": {
+    "sa3-sm-music": {
+      "repo": "stabilityai/stable-audio-3-optimized",
+      "ditPath": "onnx/sa3-sm-music/dit.onnx",
+      "decoderPath": "onnx/same-s/dec_dynamic_bf16.onnx",
+      "textEncoderPath": "onnx/t5gemma/encoder.onnx",
+      "tokenizerId": "{repo}",
+      "tokenizerPath": "tensorRT/sm_90/t5gemma/tokenizer.json",
+      "tokenizerSubfolder": "tensorRT/sm_90/t5gemma",
+      "tokenizerFallbackId": "google/t5gemma-b-b-ul2",
+      "notes": "Official SA3 Small Music ONNX. Mirror these paths to your own HF repo if you want project-owned hosting."
+    },
+    "sa3-sm-sfx": {
+      "repo": "stabilityai/stable-audio-3-optimized",
+      "ditPath": "onnx/sa3-sm-sfx/dit.onnx",
+      "decoderPath": "onnx/same-s/dec_dynamic_bf16.onnx",
+      "textEncoderPath": "onnx/t5gemma/encoder.onnx",
+      "tokenizerId": "{repo}",
+      "tokenizerPath": "tensorRT/sm_90/t5gemma/tokenizer.json",
+      "tokenizerSubfolder": "tensorRT/sm_90/t5gemma",
+      "tokenizerFallbackId": "google/t5gemma-b-b-ul2",
+      "notes": "Official SA3 Small SFX ONNX. Mirror these paths to your own HF repo if you want project-owned hosting."
+    }
+  }
+}

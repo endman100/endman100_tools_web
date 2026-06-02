@@ -633,6 +633,9 @@ function validateSettings(settings) {
   if (settings.mode === "inpaint" && !hasPaintedMask()) {
     throw new Error("Inpaint Mask mode requires a painted mask on the input image.");
   }
+  if (settings.sampler !== "ddim") {
+    throw new Error(`Unsupported sampler: ${settings.sampler}`);
+  }
 }
 
 function setFrameAspect(width, height) {
@@ -797,7 +800,32 @@ function maskToLatentMask(settings) {
       mask[ly * settings.latentW + lx] = sum / 64;
     }
   }
-  return mask;
+  if (settings.invertMask) {
+    for (let i = 0; i < mask.length; i++) mask[i] = 1 - mask[i];
+  }
+  const latentBlur = Math.round(settings.maskBlur / 8);
+  return latentBlur > 0 ? blurLatentMask(mask, settings.latentW, settings.latentH, latentBlur) : mask;
+}
+
+function blurLatentMask(mask, width, height, radius) {
+  const out = new Float32Array(mask.length);
+  const diameter = radius * 2 + 1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sum = 0;
+      let count = 0;
+      for (let oy = -radius; oy <= radius; oy++) {
+        for (let ox = -radius; ox <= radius; ox++) {
+          const sx = Math.max(0, Math.min(width - 1, x + ox));
+          const sy = Math.max(0, Math.min(height - 1, y + oy));
+          sum += mask[sy * width + sx];
+          count++;
+        }
+      }
+      out[y * width + x] = Math.min(1, Math.max(0, sum / Math.max(1, count || diameter * diameter)));
+    }
+  }
+  return out;
 }
 
 function addNoise(sample, noise, timestep) {
@@ -976,65 +1004,76 @@ async function generate() {
     setDot(dotGenerate, "loading");
     const seedLabel = settings.seedWasRandom ? `${settings.seed} (random)` : String(settings.seed);
     const strengthLabel = settings.mode === "txt2img" ? "" : `, strength ${settings.strength}`;
-    setRunStatus(`Starting ${settings.mode}, ${settings.width}x${settings.height}, ${settings.steps} step(s), CFG ${settings.cfgScale}${strengthLabel}, seed ${seedLabel}...`);
+    const sourceFitLabel = settings.mode === "txt2img" ? "" : `, source fit ${settings.sourceFit}`;
+    setRunStatus(`Starting ${settings.mode}, ${settings.sampler.toUpperCase()}, ${settings.width}x${settings.height}, ${settings.steps} step(s), CFG ${settings.cfgScale}${strengthLabel}${sourceFitLabel}, batch ${settings.batchCount}, seed ${seedLabel}...`);
     cacheState.textContent = "loading model";
     await loadAll();
 
     const ids = new BigInt64Array([...state.tokenizer.encode(settings.negative), ...state.tokenizer.encode(settings.prompt)].map(BigInt));
     const text = await state.sessions.text.run({ input_ids: new ort.Tensor("int64", ids, [2, 77]) });
     const embeddings = text.last_hidden_state ?? Object.values(text)[0];
-    const timesteps = denoiseTimesteps(settings);
-    let latents;
     let initLatents = null;
-    let initNoise = null;
     let latentMask = null;
 
-    if (settings.mode === "txt2img") {
-      latents = randomNormalArray(4 * settings.latentH * settings.latentW, settings.seed);
-      const initSigma = state.scheduler.init_noise_sigma ?? 1;
-      for (let i = 0; i < latents.length; i++) latents[i] *= initSigma;
-    } else {
+    if (settings.mode !== "txt2img") {
       log("Encoding input image to VAE latent space...");
       initLatents = await encodeSourceLatents(settings);
-      initNoise = randomNormalArray(initLatents.length, settings.seed);
-      latents = addNoise(initLatents, initNoise, timesteps[0]);
       if (settings.mode === "inpaint") {
         latentMask = maskToLatentMask(settings);
         log("Using latent mask blending: painted mask is regenerated, unpainted area is preserved.");
       }
     }
 
-    for (let index = 0; index < timesteps.length; index++) {
-      const t = timesteps[index];
-      log(`Step ${index + 1}/${timesteps.length} timestep ${t}`);
-      const doubled = new Float32Array(latents.length * 2);
-      doubled.set(latents, 0);
-      doubled.set(latents, latents.length);
-      const out = await state.sessions.unet.run({
-        sample: new ort.Tensor("float32", doubled, [2, 4, settings.latentH, settings.latentW]),
-        timestep: new ort.Tensor("int64", BigInt64Array.from([BigInt(t)]), []),
-        encoder_hidden_states: embeddings
+    for (let batchIndex = 0; batchIndex < settings.batchCount; batchIndex++) {
+      const batchSeed = settings.seedWasRandom ? createRandomSeed() : settings.seed + batchIndex;
+      const timesteps = denoiseTimesteps(settings);
+      let latents;
+      let initNoise = null;
+      const batchLabel = settings.batchCount > 1 ? `Batch ${batchIndex + 1}/${settings.batchCount} ` : "";
+      log(`${batchLabel}seed ${batchSeed}`);
+
+      if (settings.mode === "txt2img") {
+        latents = randomNormalArray(4 * settings.latentH * settings.latentW, batchSeed);
+        const initSigma = state.scheduler.init_noise_sigma ?? 1;
+        for (let i = 0; i < latents.length; i++) latents[i] *= initSigma;
+      } else {
+        initNoise = randomNormalArray(initLatents.length, batchSeed);
+        latents = addNoise(initLatents, initNoise, timesteps[0]);
+      }
+
+      for (let index = 0; index < timesteps.length; index++) {
+        const t = timesteps[index];
+        log(`${batchLabel}Step ${index + 1}/${timesteps.length} timestep ${t}`);
+        const doubled = new Float32Array(latents.length * 2);
+        doubled.set(latents, 0);
+        doubled.set(latents, latents.length);
+        const out = await state.sessions.unet.run({
+          sample: new ort.Tensor("float32", doubled, [2, 4, settings.latentH, settings.latentW]),
+          timestep: new ort.Tensor("int64", BigInt64Array.from([BigInt(t)]), []),
+          encoder_hidden_states: embeddings
+        });
+        const noise = (out.noise_pred ?? Object.values(out)[0]).data;
+        const guided = new Float32Array(latents.length);
+        for (let i = 0; i < latents.length; i++) {
+          guided[i] = noise[i] + settings.cfgScale * (noise[i + latents.length] - noise[i]);
+        }
+        latents = ddimStep(guided, t, latents, settings.steps);
+        if (latentMask) {
+          const baseLatents = index < timesteps.length - 1
+            ? addNoise(initLatents, initNoise, timesteps[index + 1])
+            : initLatents;
+          latents = blendMaskedLatents(latents, baseLatents, latentMask);
+        }
+      }
+
+      const scaled = new Float32Array(latents.length);
+      for (let i = 0; i < latents.length; i++) scaled[i] = latents[i] / 0.18215;
+      const decoded = await state.sessions.vae.run({
+        latent_sample: new ort.Tensor("float32", scaled, [1, 4, settings.latentH, settings.latentW])
       });
-      const noise = (out.noise_pred ?? Object.values(out)[0]).data;
-      const guided = new Float32Array(latents.length);
-      for (let i = 0; i < latents.length; i++) {
-        guided[i] = noise[i] + settings.cfgScale * (noise[i + latents.length] - noise[i]);
-      }
-      latents = ddimStep(guided, t, latents, settings.steps);
-      if (latentMask) {
-        const baseLatents = index < timesteps.length - 1
-          ? addNoise(initLatents, initNoise, timesteps[index + 1])
-          : initLatents;
-        latents = blendMaskedLatents(latents, baseLatents, latentMask);
-      }
+      drawImage((decoded.sample ?? Object.values(decoded)[0]).data, settings.width, settings.height);
     }
 
-    const scaled = new Float32Array(latents.length);
-    for (let i = 0; i < latents.length; i++) scaled[i] = latents[i] / 0.18215;
-    const decoded = await state.sessions.vae.run({
-      latent_sample: new ort.Tensor("float32", scaled, [1, 4, settings.latentH, settings.latentW])
-    });
-    drawImage((decoded.sample ?? Object.values(decoded)[0]).data, settings.width, settings.height);
     setStatusBadge("success");
     setDot(dotGenerate, "done");
     setReady("Ready");
@@ -1137,8 +1176,16 @@ function wireEvents() {
   clearCacheButton.addEventListener("click", () => clearModelCache().catch(error => log(`ERROR: ${error.message}`)));
   guidanceInput.addEventListener("change", readSettings);
   seedInput.addEventListener("change", readSettings);
+  samplerInput.addEventListener("change", readSettings);
   strengthInput.addEventListener("change", readSettings);
+  batchCountInput.addEventListener("change", readSettings);
+  maskBlurInput.addEventListener("change", readSettings);
+  invertMaskInput.addEventListener("change", readSettings);
   modeInputs.forEach(input => input.addEventListener("change", readSettings));
+  sourceFitInput.addEventListener("change", () => {
+    const settings = readSettings();
+    drawSourceImage(settings.width, settings.height);
+  });
   widthInput.addEventListener("change", () => {
     const settings = readSettings();
     drawSourceImage(settings.width, settings.height);

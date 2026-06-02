@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Supertonic TTS — Endman100 Tools</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style.css?v=20260603-reference-json" />
 </head>
 <body>
 
@@ -39,7 +39,7 @@
       <div class="status-row">
         <span class="status-badge loading" id="statusBadge">LOADING</span>
         <span class="status-msg" id="statusMsg">Initializing ONNX Runtime…</span>
-        <span class="backend-badge hidden" id="backendBadge">WebAssembly</span>
+        <span class="backend-badge hidden" id="backendBadge">WebGPU Required</span>
       </div>
 
       <!-- Download Progress -->
@@ -67,7 +67,7 @@
       <span class="bi">ℹ️</span>
       <p>
         模型來自 <a href="https://huggingface.co/Supertone/supertonic-3" target="_blank" rel="noopener">HuggingFace — Supertone/supertonic-3</a>，首次使用需下載約 <strong>400 MB</strong>（含 4 個 ONNX 模型）並存入瀏覽器 IndexedDB，之後可完全離線使用。
-        不支援 GPU 亦可運行（CPU / WebAssembly fallback），WebGPU 可用時速度更快。
+        此版本僅支援 <strong>WebGPU</strong>；沒有 WebGPU 的瀏覽器或裝置不會啟用 CPU / WebAssembly fallback。
         <strong>不支援中文（zh）</strong>，支援語言包含英、日、韓等 31 種。
       </p>
     </div>
@@ -99,6 +99,7 @@
           <label for="langSel">語言 Language</label>
           <select id="langSel">
             <option value="en" selected>English (en)</option>
+            <option value="na">Auto / Language-agnostic (na)</option>
             <option value="ko">한국어 (ko)</option>
             <option value="ja">日本語 (ja)</option>
             <option value="ar">العربية (ar)</option>
@@ -148,6 +149,52 @@
       </div>
     </div>
 
+    <!-- Optional Voice Reference -->
+    <div class="card reference-card">
+      <div class="card-title">選填 · 聲音參考</div>
+      <div class="reference-section">
+        <div class="reference-line">
+          <div class="ref-copy">
+            <span class="ref-label">參考音</span>
+            <span class="ref-help">錄音或上傳乾淨人聲，下載 WAV 給 Voice Builder；JSON 是參考音封包，不是 Voice Style。</span>
+          </div>
+          <button class="btn btn-ghost" id="startRecordBtn" type="button">錄音</button>
+          <button class="btn btn-ghost" id="stopRecordBtn" type="button" disabled>停止</button>
+          <label class="file-btn">
+            上傳音檔/JSON
+            <input type="file" id="referenceAudioFile" accept="audio/*,.json,application/json" hidden />
+          </label>
+          <button class="btn btn-primary" id="downloadReferenceBtn" type="button" disabled>下載 WAV</button>
+          <button class="btn btn-ghost" id="downloadReferenceJsonBtn" type="button" disabled>下載 JSON</button>
+        </div>
+        <div class="reference-status" id="referenceStatus">尚未建立參考音。</div>
+        <audio class="reference-audio hidden" id="referenceAudio" controls></audio>
+      </div>
+    </div>
+
+    <div class="card reference-card">
+      <div class="card-title">選填 · Voice JSON</div>
+      <div class="reference-section">
+        <div class="reference-line">
+          <div class="ref-copy">
+            <span class="ref-label">自訂 Voice JSON</span>
+            <span class="ref-help">匯入 <a href="https://supertonic.supertone.ai/" target="_blank" rel="noopener">Voice Builder</a> 產出的 style_ttl/style_dp JSON，加入 Voice Style。</span>
+          </div>
+          <div class="compact-field">
+            <label for="customVoiceName">名稱</label>
+            <input type="text" id="customVoiceName" placeholder="例如：My Narrator" />
+          </div>
+          <label class="file-btn">
+            JSON
+            <input type="file" id="customVoiceJson" accept=".json,application/json" hidden />
+          </label>
+          <button class="btn btn-primary" id="importVoiceBtn" type="button">匯入</button>
+          <button class="btn btn-danger" id="clearVoicesBtn" type="button">清除</button>
+        </div>
+        <div class="custom-voice-list" id="customVoiceList">尚未匯入自訂 voice。</div>
+      </div>
+    </div>
+
     <!-- Text Input Card -->
     <div class="card">
       <div class="card-title">② 輸入文字</div>
@@ -176,8 +223,8 @@
 
   </main>
 
-  <!-- ONNX Runtime Web (UMD, sets global `ort`) -->
-  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
-  <script src="./index.js"></script>
+  <!-- ONNX Runtime WebGPU build (UMD, sets global `ort`) -->
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/ort.webgpu.min.js"></script>
+  <script src="./index.js?v=20260603-reference-json"></script>
 </body>
 </html>

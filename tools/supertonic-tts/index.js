@@ -1,5 +1,5 @@
 /**
- * Supertonic TTS — Pure Frontend Tool
+ * Supertonic TTS — Pure Frontend WebGPU Tool
  * Models loaded from HuggingFace CDN, cached in IndexedDB.
  * Engine ported from https://github.com/supertone-inc/supertonic/tree/main/web
  * License: MIT (code) / OpenRAIL-M (model weights)
@@ -14,6 +14,9 @@
 
   const DB_NAME    = 'supertonic-v3-cache';
   const STORE_NAME = 'models';
+  const CUSTOM_VOICES_KEY = 'supertonic-v3-custom-voices';
+  const WEBGPU_ERROR =
+    'This tool is WebGPU-only. Use a WebGPU-capable Chrome/Edge browser and make sure GPU acceleration is enabled.';
 
   const MODEL_DEFS = [
     { id: 'dp', name: 'Duration Predictor', url: `${ONNX_BASE}/duration_predictor.onnx`, size: '3.7 MB'  },
@@ -25,7 +28,7 @@
   const AVAILABLE_LANGS = [
     'en','ko','ja','ar','bg','cs','da','de','el','es',
     'et','fi','fr','hi','hr','hu','id','it','lt','lv',
-    'nl','pl','pt','ro','ru','sk','sl','sv','tr','uk','vi'
+    'nl','pl','pt','ro','ru','sk','sl','sv','tr','uk','vi','na'
   ];
 
   // ─── Global State ─────────────────────────────────────────────────────────
@@ -33,6 +36,11 @@
   let tts = null;
   let currentStyle = null;
   let currentAudioUrl = null;
+  let currentReferenceUrl = null;
+  let currentReferenceBlob = null;
+  let currentReferenceName = '';
+  let mediaRecorder = null;
+  let recordedChunks = [];
 
   // ─── IndexedDB Cache ──────────────────────────────────────────────────────
   function openDB() {
@@ -157,7 +165,7 @@
       text = text.replace(/\s+/g, ' ').trim();
       if (!/[.!?;:,'\"')\]}…。」』】〉》›»]$/.test(text)) text += '.';
       if (!AVAILABLE_LANGS.includes(lang)) throw new Error(`Invalid language: ${lang}`);
-      return `<${lang}>${text}</${lang}>`;
+      return `<${lang}>${text}`;
     }
 
     _mask(lengths) {
@@ -192,8 +200,8 @@
       const { textIds, textMask } = this.proc.call(textList, langList);
 
       // Save raw data for all tensors used in multiple run() calls.
-      // proxy=true transfers ArrayBuffers to the Worker (detaching them on main thread),
-      // so every run() call must receive freshly constructed tensors.
+      // WebGPU runs reuse these values across sessions and denoising steps, so every
+      // run() call receives freshly constructed tensors.
       const tiRaw   = new BigInt64Array(textIds.flat().map(x => BigInt(x)));
       const tiShape = [bsz, textIds[0].length];
       const tmRaw   = new Float32Array(textMask.flat(2));
@@ -376,6 +384,51 @@
     return (b / 1048576).toFixed(1) + ' MB';
   }
 
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, ch => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+  }
+
+  function safeFileStem(value, fallback = 'reference') {
+    const stem = String(value || fallback).replace(/\.[^.]+$/, '').trim();
+    return (stem || fallback).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || fallback;
+  }
+
+  function blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error || new Error('Failed to read audio blob.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(String(dataUrl || ''));
+    if (!match || !match[2]) throw new Error('Reference JSON audioData must be a base64 data URL.');
+    const mimeType = match[1] || 'audio/wav';
+    const binary = atob(match[3]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mimeType });
+  }
+
+  async function readReferenceAudioPackage(file) {
+    const pkg = JSON.parse(await file.text());
+    if (pkg?.kind !== 'supertonic-reference-audio' || !pkg.audioData) {
+      throw new Error('這不是參考音 JSON。Voice Builder 產出的 Voice JSON 請用下方 Voice JSON 區塊匯入。');
+    }
+    return {
+      blob: dataUrlToBlob(pkg.audioData),
+      sourceName: pkg.sourceName || file.name.replace(/\.json$/i, '.wav') || 'reference.wav'
+    };
+  }
+
+  function containsHanText(text) {
+    return /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u.test(text);
+  }
+
   // ─── UI Helpers ───────────────────────────────────────────────────────────
   const $ = id => document.getElementById(id);
 
@@ -408,11 +461,40 @@
     if (el) el.className = `dot ${state}`;
   }
 
+  function setBackendBadge(text, type = 'webgpu') {
+    const backendEl = $('backendBadge');
+    if (!backendEl) return;
+    backendEl.className = `backend-badge ${type}`;
+    backendEl.textContent = text;
+    backendEl.classList.remove('hidden');
+  }
+
+  async function requireWebGpu() {
+    if (!navigator.gpu) {
+      setBackendBadge('WebGPU unavailable', 'error');
+      throw new Error(WEBGPU_ERROR);
+    }
+
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) {
+      setBackendBadge('No WebGPU adapter', 'error');
+      throw new Error(WEBGPU_ERROR);
+    }
+
+    if (ort.env.webgpu) {
+      ort.env.webgpu.powerPreference = 'high-performance';
+      ort.env.webgpu.forceFallbackAdapter = false;
+      ort.env.webgpu.adapter = adapter;
+    }
+
+    setBackendBadge('WebGPU only', 'webgpu');
+  }
+
   // ─── Voice Style Loader ───────────────────────────────────────────────────
-  async function loadVoiceStyle(name) {
-    const url = `${VS_BASE}/${name}.json`;
-    const buf = await fetchFile(url);
-    const vs  = JSON.parse(new TextDecoder().decode(buf));
+  function createStyleFromDefinition(vs) {
+    if (!vs || !vs.style_ttl || !vs.style_dp || !vs.style_ttl.data || !vs.style_dp.data || !vs.style_ttl.dims || !vs.style_dp.dims) {
+      throw new Error('Voice JSON must include style_ttl and style_dp data/dims.');
+    }
     const ttlFlat = new Float32Array(vs.style_ttl.data.flat(Infinity));
     const dpFlat  = new Float32Array(vs.style_dp.data.flat(Infinity));
     return new Style(
@@ -421,10 +503,246 @@
     );
   }
 
+  async function loadVoiceStyle(name) {
+    const url = `${VS_BASE}/${name}.json`;
+    const buf = await fetchFile(url);
+    const vs  = JSON.parse(new TextDecoder().decode(buf));
+    return createStyleFromDefinition(vs);
+  }
+
+  function getCustomVoices() {
+    try {
+      const raw = localStorage.getItem(CUSTOM_VOICES_KEY);
+      const voices = raw ? JSON.parse(raw) : [];
+      return Array.isArray(voices) ? voices : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveCustomVoices(voices) {
+    localStorage.setItem(CUSTOM_VOICES_KEY, JSON.stringify(voices));
+  }
+
+  function loadCustomVoiceStyle(id) {
+    const voice = getCustomVoices().find(item => item.id === id);
+    if (!voice) throw new Error('Custom voice not found.');
+    return createStyleFromDefinition(voice.definition);
+  }
+
+  async function loadSelectedVoiceStyle(value) {
+    if (value.startsWith('custom:')) return loadCustomVoiceStyle(value.slice(7));
+    return loadVoiceStyle(value);
+  }
+
+  function renderCustomVoices() {
+    const select = $('voiceSel');
+    const list = $('customVoiceList');
+    if (!select || !list) return;
+
+    const existing = select.querySelector('optgroup[data-custom-voices]');
+    if (existing) existing.remove();
+
+    const voices = getCustomVoices();
+    if (voices.length) {
+      const group = document.createElement('optgroup');
+      group.label = 'Custom Voices';
+      group.dataset.customVoices = 'true';
+      voices.forEach(voice => {
+        const option = document.createElement('option');
+        option.value = `custom:${voice.id}`;
+        option.textContent = voice.name;
+        group.appendChild(option);
+      });
+      select.appendChild(group);
+      list.innerHTML = voices.map(voice => `<span class="voice-chip">${escapeHtml(voice.name)}</span>`).join('');
+    } else {
+      list.textContent = '尚未匯入自訂 voice。';
+    }
+  }
+
+  async function importCustomVoice() {
+    const fileInput = $('customVoiceJson');
+    const nameInput = $('customVoiceName');
+    const file = fileInput?.files?.[0];
+    if (!file) {
+      setReferenceStatus('請先選擇 Supertonic Voice JSON。', true);
+      return;
+    }
+
+    try {
+      const definition = JSON.parse(await file.text());
+      if (definition?.kind === 'supertonic-reference-audio') {
+        throw new Error('這是參考音 JSON，不是 Voice Builder style_ttl/style_dp Voice JSON。請改用上方聲音參考區塊匯入。');
+      }
+      createStyleFromDefinition(definition);
+      const fallbackName = file.name.replace(/\.json$/i, '') || 'Custom Voice';
+      const name = (nameInput.value || fallbackName).trim();
+      const voices = getCustomVoices();
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      voices.push({ id, name, definition });
+      saveCustomVoices(voices);
+      renderCustomVoices();
+
+      $('voiceSel').value = `custom:${id}`;
+      if (tts) {
+        currentStyle = loadCustomVoiceStyle(id);
+        setStatus(`Custom voice "${name}" ready.`, 'success');
+      }
+      fileInput.value = '';
+      nameInput.value = '';
+    } catch (e) {
+      setStatus('Failed to import custom voice: ' + e.message, 'error');
+      setReferenceStatus('匯入失敗：' + e.message, true);
+    }
+  }
+
+  function clearCustomVoices() {
+    if (!confirm('Clear all imported custom voices?')) return;
+    localStorage.removeItem(CUSTOM_VOICES_KEY);
+    const voiceSel = $('voiceSel');
+    if (voiceSel && voiceSel.value.startsWith('custom:')) voiceSel.value = 'M1';
+    renderCustomVoices();
+    setStatus('Custom voices cleared.', 'info');
+  }
+
+  function setReferenceStatus(message, isError = false) {
+    const el = $('referenceStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.className = `reference-status${isError ? ' error' : ''}`;
+  }
+
+  function isWavAudio(blob, sourceName = '') {
+    return /wav/i.test(blob.type || '') || /\.wav$/i.test(sourceName);
+  }
+
+  async function audioBlobToWav(blob, sourceName = '') {
+    if (isWavAudio(blob, sourceName)) {
+      return blob.type ? blob : new Blob([blob], { type: 'audio/wav' });
+    }
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextCtor) throw new Error('This browser cannot decode audio files.');
+    let ctx;
+    try {
+      ctx = new AudioContextCtor({ sampleRate: 44100 });
+    } catch (e) {
+      ctx = new AudioContextCtor();
+    }
+    try {
+      const audioBuffer = await ctx.decodeAudioData(await blob.arrayBuffer());
+      const mono = new Float32Array(audioBuffer.length);
+      for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+        const data = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < data.length; i++) mono[i] += data[i] / audioBuffer.numberOfChannels;
+      }
+      return new Blob([writeWav(Array.from(mono), audioBuffer.sampleRate)], { type: 'audio/wav' });
+    } finally {
+      if (ctx.close) ctx.close();
+    }
+  }
+
+  async function setReferenceBlob(blob, sourceName) {
+    const audio = $('referenceAudio');
+    const downloadBtn = $('downloadReferenceBtn');
+    const downloadJsonBtn = $('downloadReferenceJsonBtn');
+    setReferenceStatus('正在整理參考音並轉成 WAV…');
+
+    try {
+      currentReferenceBlob = await audioBlobToWav(blob, sourceName);
+      currentReferenceName = sourceName || 'reference.wav';
+      if (currentReferenceUrl) URL.revokeObjectURL(currentReferenceUrl);
+      currentReferenceUrl = URL.createObjectURL(currentReferenceBlob);
+      audio.src = currentReferenceUrl;
+      audio.classList.remove('hidden');
+      downloadBtn.disabled = false;
+      downloadJsonBtn.disabled = false;
+      setReferenceStatus(`參考音已就緒：${sourceName} · ${fmtBytes(currentReferenceBlob.size)} WAV`);
+    } catch (e) {
+      currentReferenceBlob = blob;
+      currentReferenceName = sourceName || 'reference-audio';
+      if (currentReferenceUrl) URL.revokeObjectURL(currentReferenceUrl);
+      currentReferenceUrl = URL.createObjectURL(blob);
+      audio.src = currentReferenceUrl;
+      audio.classList.remove('hidden');
+      downloadBtn.disabled = false;
+      downloadJsonBtn.disabled = false;
+      setReferenceStatus(`無法轉 WAV，已保留原始音檔：${e.message}`, true);
+    }
+  }
+
+  async function startRecording() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setReferenceStatus('此瀏覽器不支援麥克風錄音。', true);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.addEventListener('dataavailable', event => {
+        if (event.data.size > 0) recordedChunks.push(event.data);
+      });
+      mediaRecorder.addEventListener('stop', () => {
+        stream.getTracks().forEach(track => track.stop());
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+        setReferenceBlob(blob, 'recording');
+      });
+      mediaRecorder.start();
+      $('startRecordBtn').disabled = true;
+      $('stopRecordBtn').disabled = false;
+      setReferenceStatus('錄音中。建議錄 5–10 秒乾淨人聲。');
+    } catch (e) {
+      setReferenceStatus('無法開始錄音：' + e.message, true);
+    }
+  }
+
+  function stopRecording() {
+    if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+    mediaRecorder.stop();
+    $('startRecordBtn').disabled = false;
+    $('stopRecordBtn').disabled = true;
+  }
+
+  function downloadReference() {
+    if (!currentReferenceBlob) return;
+    const a = document.createElement('a');
+    a.href = currentReferenceUrl;
+    a.download = `${safeFileStem(currentReferenceName, 'supertonic-reference')}.wav`;
+    a.click();
+  }
+
+  async function downloadReferenceJson() {
+    if (!currentReferenceBlob) return;
+    const payload = {
+      kind: 'supertonic-reference-audio',
+      version: 1,
+      createdAt: new Date().toISOString(),
+      sourceName: currentReferenceName || 'reference.wav',
+      mimeType: currentReferenceBlob.type || 'audio/wav',
+      sizeBytes: currentReferenceBlob.size,
+      notVoiceStyle: true,
+      note: 'Portable reference-audio package for this tool. This is not a Supertonic Voice Builder style_ttl/style_dp Voice JSON.',
+      audioData: await blobToDataUrl(currentReferenceBlob)
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeFileStem(currentReferenceName, 'supertonic-reference')}.reference.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   // ─── Model Loader ─────────────────────────────────────────────────────────
   async function loadModels() {
     // Open IndexedDB (non-fatal)
     try { db = await openDB(); } catch (e) { console.warn('IndexedDB unavailable:', e); }
+
+    setStatus('Checking WebGPU support…', 'loading');
+    await requireWebGpu();
 
     setStatus('Loading configuration…', 'loading');
 
@@ -435,19 +753,10 @@
     const indexer    = JSON.parse(new TextDecoder().decode(idxBuf));
     const textProc   = new UnicodeProcessor(indexer);
 
-    // Use default execution providers (WASM/CPU) — do not specify manually
-    // ort.min.js CDN build v1.17.0 does not support named 'webgpu' or 'wasm' EPs
     const sessionOpts = {
-      graphOptimizationLevel: 'all'
+      graphOptimizationLevel: 'all',
+      executionProviders: ['webgpu']
     };
-
-    // Update backend badge
-    const backendEl = $('backendBadge');
-    if (backendEl) {
-      backendEl.className = 'backend-badge wasm';
-      backendEl.textContent = '🔧 WebAssembly';
-      backendEl.classList.remove('hidden');
-    }
 
     // Load ONNX sessions
     const sessions = {};
@@ -476,11 +785,12 @@
     tts = new TextToSpeech(cfgs, textProc,
       sessions.dp, sessions.te, sessions.ve, sessions.vc);
 
-    // Load default voice style
-    setStatus('Loading voice style M1…', 'loading');
-    currentStyle = await loadVoiceStyle('M1');
+    // Load selected voice style
+    const selectedVoice = $('voiceSel')?.value || 'M1';
+    setStatus(`Loading voice style ${selectedVoice.replace('custom:', '')}…`, 'loading');
+    currentStyle = await loadSelectedVoiceStyle(selectedVoice);
 
-    setStatus('Ready! All models loaded — click Generate Speech.', 'success');
+    setStatus('Ready! WebGPU models loaded — click Generate Speech.', 'success');
     $('generateBtn').disabled = false;
     await updateCacheSize();
   }
@@ -494,6 +804,12 @@
     const lang      = $('langSel').value;
     const totalStep = parseInt($('stepsInput').value) || 8;
     const speed     = parseFloat($('speedInput').value) || 1.05;
+
+    if (containsHanText(text) && lang !== 'ja' && lang !== 'ko') {
+      showResultError('Supertonic 3 does not support Chinese (zh). Please use supported-language text, or choose Japanese/Korean only when the input is actually ja/ko.');
+      setStatus('Chinese (zh) is not supported by this model.', 'error');
+      return;
+    }
 
     $('generateBtn').disabled = true;
     const startMs = Date.now();
@@ -586,22 +902,48 @@
   // ─── Init ─────────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
     // Configure ORT
-    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/';
-    ort.env.wasm.numThreads = 1; // Avoid SharedArrayBuffer requirement
-    ort.env.wasm.proxy = true;   // Run inference in Web Worker, keeps UI responsive
+    ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/';
+    ort.env.wasm.numThreads = 1; // Keep the JSEP/WASM support files single-threaded.
+    ort.env.wasm.proxy = false;  // WebGPU EP cannot use ORT's WASM proxy worker.
 
     const genBtn = $('generateBtn');
     genBtn.addEventListener('click', generate);
+    renderCustomVoices();
+
+    $('startRecordBtn').addEventListener('click', startRecording);
+    $('stopRecordBtn').addEventListener('click', stopRecording);
+    $('downloadReferenceBtn').addEventListener('click', downloadReference);
+    $('downloadReferenceJsonBtn').addEventListener('click', () => {
+      downloadReferenceJson().catch(e => setReferenceStatus('無法下載參考音 JSON：' + e.message, true));
+    });
+    $('importVoiceBtn').addEventListener('click', importCustomVoice);
+    $('clearVoicesBtn').addEventListener('click', clearCustomVoices);
+    $('referenceAudioFile').addEventListener('change', async e => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        if (/json/i.test(file.type || '') || /\.json$/i.test(file.name)) {
+          const reference = await readReferenceAudioPackage(file);
+          await setReferenceBlob(reference.blob, reference.sourceName);
+        } else {
+          await setReferenceBlob(file, file.name);
+        }
+      } catch (err) {
+        setReferenceStatus('參考音匯入失敗：' + err.message, true);
+      } finally {
+        e.target.value = '';
+      }
+    });
 
     // Voice style change
     $('voiceSel').addEventListener('change', async (e) => {
       if (!tts) return;
       const name = e.target.value;
       genBtn.disabled = true;
-      setStatus(`Loading voice style ${name}…`, 'loading');
+      setStatus(`Loading voice style ${name.replace('custom:', '')}…`, 'loading');
       try {
-        currentStyle = await loadVoiceStyle(name);
-        setStatus(`Voice style ${name} ready.`, 'success');
+        currentStyle = await loadSelectedVoiceStyle(name);
+        setStatus(`Voice style ${name.replace('custom:', '')} ready.`, 'success');
       } catch (err) {
         setStatus('Failed to load voice style: ' + err.message, 'error');
       }

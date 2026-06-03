@@ -10,6 +10,8 @@ let imageInput = null;
 let imageProcessed = null;
 let imageEmbeddings = null;
 let currentImageUrl = '';
+let currentVideoUrl = '';
+let currentVideoName = '';
 let promptMode = 'point';
 let points = [];
 let activeBox = null;
@@ -21,6 +23,9 @@ let isDecoding = false;
 let decodePending = false;
 let bestMask = null;
 let lastObjectUrl = null;
+let lastFrameUrl = null;
+let isShowingVideo = false;
+let isSeekingVideo = false;
 const fileMap = new Map();
 
 const refs = {
@@ -41,6 +46,13 @@ const refs = {
   stage: document.getElementById('stage'),
   uploadArea: document.getElementById('uploadArea'),
   imageInput: document.getElementById('imageInput'),
+  videoDisplay: document.getElementById('videoDisplay'),
+  videoPanel: document.getElementById('videoPanel'),
+  videoName: document.getElementById('videoName'),
+  videoTime: document.getElementById('videoTime'),
+  videoTimeline: document.getElementById('videoTimeline'),
+  captureFrameBtn: document.getElementById('captureFrameBtn'),
+  returnToVideoBtn: document.getElementById('returnToVideoBtn'),
   imageDisplay: document.getElementById('imageDisplay'),
   maskCanvas: document.getElementById('maskCanvas'),
   guideCanvas: document.getElementById('guideCanvas'),
@@ -131,7 +143,7 @@ function onProgress(info) {
 }
 
 function hasImage() {
-  return Boolean(currentImageUrl && refs.imageDisplay.complete && refs.imageDisplay.naturalWidth);
+  return Boolean(!isShowingVideo && currentImageUrl && refs.imageDisplay.complete && refs.imageDisplay.naturalWidth);
 }
 
 function canDecode() {
@@ -146,6 +158,8 @@ function updateButtons() {
   refs.decodeBtn.disabled = !canDecode();
   refs.clearPromptsBtn.disabled = !hasImage() || (!points.length && !activeBox && !bestMask);
   refs.resetImageBtn.disabled = !hasImage() || isEncoding;
+  refs.captureFrameBtn.disabled = !isModelReady || !currentVideoUrl || isEncoding || isSeekingVideo;
+  refs.returnToVideoBtn.disabled = !currentVideoUrl || isEncoding;
   refs.downloadCutoutBtn.disabled = !bestMask;
   refs.downloadMaskBtn.disabled = !bestMask;
   refs.downloadOverlayBtn.disabled = !bestMask;
@@ -294,9 +308,69 @@ function clearPrompts() {
   updateButtons();
 }
 
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60).toString().padStart(2, '0');
+  return `${mins}:${secs}`;
+}
+
+function updateVideoTime() {
+  const duration = refs.videoDisplay.duration || 0;
+  const current = refs.videoDisplay.currentTime || 0;
+  refs.videoTimeline.max = Number.isFinite(duration) ? String(duration) : '0';
+  refs.videoTimeline.value = String(current);
+  refs.videoTime.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
+}
+
+function clearFrameUrl() {
+  if (lastFrameUrl) URL.revokeObjectURL(lastFrameUrl);
+  lastFrameUrl = null;
+}
+
+function clearVideoState() {
+  refs.videoDisplay.pause();
+  refs.videoDisplay.removeAttribute('src');
+  refs.videoDisplay.load();
+  refs.videoDisplay.style.display = 'none';
+  refs.videoPanel.classList.add('hidden');
+  refs.videoName.textContent = '未選擇影片';
+  refs.videoTime.textContent = '0:00 / 0:00';
+  refs.videoTimeline.value = '0';
+  refs.videoTimeline.max = '0';
+  currentVideoUrl = '';
+  currentVideoName = '';
+  isShowingVideo = false;
+  isSeekingVideo = false;
+}
+
+function showVideoPreview() {
+  if (!currentVideoUrl) return;
+  isShowingVideo = true;
+  imageInput = null;
+  imageProcessed = null;
+  imageEmbeddings = null;
+  currentImageUrl = '';
+  refs.imageDisplay.removeAttribute('src');
+  clearFrameUrl();
+  refs.imageDisplay.style.display = 'none';
+  refs.videoDisplay.style.display = 'block';
+  refs.videoPanel.classList.remove('hidden');
+  refs.uploadArea.classList.add('hidden');
+  refs.imageSize.textContent = refs.videoDisplay.videoWidth && refs.videoDisplay.videoHeight
+    ? `${refs.videoDisplay.videoWidth}×${refs.videoDisplay.videoHeight}`
+    : '--';
+  setDot(refs.dotImage, 'pending');
+  clearPrompts();
+  refs.stageHint.textContent = '影片已載入。調整時間軸後按「擷取目前影格」，再用點選或框選產生遮罩。';
+  updateButtons();
+}
+
 function resetImage() {
   if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+  clearFrameUrl();
   lastObjectUrl = null;
+  clearVideoState();
   currentImageUrl = '';
   imageInput = null;
   imageProcessed = null;
@@ -308,6 +382,74 @@ function resetImage() {
   setDot(refs.dotImage, 'pending');
   clearPrompts();
   updateButtons();
+}
+
+function loadVideoElement(url) {
+  return new Promise((resolve, reject) => {
+    refs.videoDisplay.onloadedmetadata = () => resolve();
+    refs.videoDisplay.onerror = () => reject(new Error('影片載入失敗'));
+    refs.videoDisplay.src = url;
+  });
+}
+
+async function loadVideoFile(url, name) {
+  if (!isModelReady || isEncoding) return;
+  clearFrameUrl();
+  currentVideoUrl = url;
+  currentVideoName = name || 'video';
+  clearPrompts();
+  clearMaskOnly();
+  refs.uploadArea.classList.add('hidden');
+  refs.imageDisplay.style.display = 'none';
+  refs.videoDisplay.style.display = 'block';
+  refs.videoPanel.classList.remove('hidden');
+  refs.videoName.textContent = currentVideoName;
+  setDot(refs.dotImage, 'pending');
+  setStatus('loading', '載入影片 metadata...');
+
+  try {
+    await loadVideoElement(url);
+    updateVideoTime();
+    showVideoPreview();
+    setStatus('success', '影片已載入。請選擇時間點並擷取目前影格。');
+    log(`Video loaded: ${currentVideoName}, ${refs.videoDisplay.videoWidth}x${refs.videoDisplay.videoHeight}, ${formatTime(refs.videoDisplay.duration)}.`);
+  } catch (error) {
+    console.error(error);
+    clearVideoState();
+    refs.uploadArea.classList.remove('hidden');
+    setStatus('error', `影片載入失敗：${error.message}`);
+    log(`Video load failed: ${error.message}`);
+  } finally {
+    updateButtons();
+  }
+}
+
+function seekVideoTo(seconds) {
+  if (!currentVideoUrl) return;
+  isSeekingVideo = true;
+  refs.videoDisplay.currentTime = clamp(seconds, 0, refs.videoDisplay.duration || 0);
+  updateButtons();
+}
+
+function captureVideoFrame() {
+  if (!currentVideoUrl || !refs.videoDisplay.videoWidth || !refs.videoDisplay.videoHeight) return;
+  refs.videoDisplay.pause();
+  const canvas = document.createElement('canvas');
+  canvas.width = refs.videoDisplay.videoWidth;
+  canvas.height = refs.videoDisplay.videoHeight;
+  canvas.getContext('2d').drawImage(refs.videoDisplay, 0, 0, canvas.width, canvas.height);
+  canvas.toBlob(blob => {
+    if (!blob) {
+      setStatus('error', '影片影格擷取失敗：無法建立影像。');
+      return;
+    }
+    clearFrameUrl();
+    lastFrameUrl = URL.createObjectURL(blob);
+    isShowingVideo = false;
+    refs.videoDisplay.style.display = 'none';
+    refs.stageHint.textContent = `已擷取 ${formatTime(refs.videoDisplay.currentTime)} 的影片影格，正在建立 embedding...`;
+    encodeImage(lastFrameUrl, { preserveVideo: true });
+  }, 'image/png');
 }
 
 async function importTransformers() {
@@ -353,7 +495,7 @@ async function loadModel() {
 
     model = await Sam3TrackerModel.from_pretrained(MODEL_ID, {
       dtype: {
-        vision_encoder: 'q4',
+        vision_encoder: 'fp32',
         prompt_encoder_mask_decoder: 'fp32',
       },
       device: 'webgpu',
@@ -364,7 +506,7 @@ async function loadModel() {
     });
 
     isModelReady = true;
-    refs.backendBadge.textContent = 'WebGPU · q4/fp32';
+    refs.backendBadge.textContent = 'WebGPU · fp32';
     setDot(refs.dotModel, 'done');
     refs.progressFill.style.width = '100%';
     refs.progressWrap.classList.add('hidden');
@@ -390,8 +532,15 @@ function loadImageElement(url) {
   });
 }
 
-async function encodeImage(url) {
+async function encodeImage(url, options = {}) {
   if (!isModelReady || isEncoding) return;
+  const preserveVideo = Boolean(options.preserveVideo);
+  if (!preserveVideo) {
+    clearFrameUrl();
+    clearVideoState();
+  }
+  isShowingVideo = false;
+  refs.videoDisplay.style.display = 'none';
   isEncoding = true;
   updateButtons();
   clearPrompts();
@@ -401,6 +550,7 @@ async function encodeImage(url) {
   try {
     currentImageUrl = url;
     refs.uploadArea.classList.add('hidden');
+    if (!preserveVideo) refs.videoPanel.classList.add('hidden');
     refs.imageDisplay.style.display = 'block';
     await loadImageElement(url);
     updateCanvasGeometry();
@@ -420,7 +570,9 @@ async function encodeImage(url) {
 
     setDot(refs.dotImage, 'done');
     setStatus('success', 'Image embedding 完成。可以開始互動分割。');
-    refs.stageHint.textContent = '點選加入正向點；右鍵加入負向點。框選模式可拖曳建立 box prompt。';
+    refs.stageHint.textContent = preserveVideo
+      ? '影片影格 embedding 完成。可點選或框選產生遮罩，也可回到影片預覽擷取其他時間點。'
+      : '點選加入正向點；右鍵加入負向點。框選模式可拖曳建立 box prompt。';
     log(`Image encoded: ${refs.imageDisplay.naturalWidth}x${refs.imageDisplay.naturalHeight}.`);
   } catch (error) {
     console.error(error);
@@ -734,15 +886,27 @@ async function clearCache() {
   }
 }
 
+function handleMediaFile(file) {
+  if (!file) return;
+  const isImage = file.type.startsWith('image/');
+  const isVideo = file.type.startsWith('video/');
+  if (!isImage && !isVideo) {
+    setStatus('error', '請上傳瀏覽器可讀取的圖片或影片檔。');
+    return;
+  }
+  if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+  clearFrameUrl();
+  lastObjectUrl = URL.createObjectURL(file);
+  if (isVideo) loadVideoFile(lastObjectUrl, file.name);
+  else encodeImage(lastObjectUrl);
+}
+
 function wireEvents() {
   refs.loadModelBtn.addEventListener('click', loadModel);
   refs.clearCacheBtn.addEventListener('click', clearCache);
   refs.imageInput.addEventListener('change', event => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-    lastObjectUrl = URL.createObjectURL(file);
-    encodeImage(lastObjectUrl);
+    handleMediaFile(event.target.files?.[0]);
+    event.target.value = '';
   });
 
   refs.uploadArea.addEventListener('click', event => {
@@ -764,19 +928,35 @@ function wireEvents() {
     event.preventDefault();
     refs.uploadArea.classList.remove('dragover');
     const file = event.dataTransfer.files?.[0];
-    if (!file || !file.type.startsWith('image/')) return;
-    if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
-    lastObjectUrl = URL.createObjectURL(file);
-    encodeImage(lastObjectUrl);
+    handleMediaFile(file);
   });
 
   document.querySelectorAll('.example-thumb').forEach(button => {
     button.addEventListener('click', event => {
       event.preventDefault();
       event.stopPropagation();
+      if (lastObjectUrl) URL.revokeObjectURL(lastObjectUrl);
+      lastObjectUrl = null;
       encodeImage(button.dataset.src);
     });
   });
+
+  refs.videoTimeline.addEventListener('input', () => {
+    seekVideoTo(Number(refs.videoTimeline.value));
+  });
+  refs.videoDisplay.addEventListener('timeupdate', updateVideoTime);
+  refs.videoDisplay.addEventListener('loadedmetadata', updateVideoTime);
+  refs.videoDisplay.addEventListener('seeking', () => {
+    isSeekingVideo = true;
+    updateButtons();
+  });
+  refs.videoDisplay.addEventListener('seeked', () => {
+    isSeekingVideo = false;
+    updateVideoTime();
+    updateButtons();
+  });
+  refs.captureFrameBtn.addEventListener('click', captureVideoFrame);
+  refs.returnToVideoBtn.addEventListener('click', showVideoPreview);
 
   document.querySelectorAll('.segment').forEach(button => {
     button.addEventListener('click', () => setPromptMode(button.dataset.mode));
@@ -822,7 +1002,7 @@ function wireEvents() {
 function init() {
   if (mockMode) {
     refs.backendBadge.textContent = 'Mock WebGPU';
-    setStatus('info', 'Mock 測試模式：會自動初始化 mock 模型，不下載 5.49GB 權重。');
+    setStatus('info', 'Mock 測試模式：會自動初始化 mock 模型，不下載 fp32 權重。');
   } else if (!navigator.gpu) {
     setStatus('error', '未偵測到 WebGPU。請使用支援 WebGPU 的 Chrome/Edge。');
     refs.backendBadge.textContent = 'WebGPU required';

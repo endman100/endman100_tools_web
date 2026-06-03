@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Irodori TTS VoiceDesign — Endman100 Tools</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Irodori VoiceDesign</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">🎙️</div>
+      <div>
+        <h1>Irodori TTS VoiceDesign</h1>
+        <p>Aratako/Irodori-TTS-600M-v3-VoiceDesign 日文 TTS，支援 Text + Caption、可選 Reference Speech、emoji 風格控制與多候選輸出。</p>
+      </div>
+    </div>
+
+    <div class="status-card">
+      <div class="status-row">
+        <span class="status-badge loading" id="statusBadge">LOADING</span>
+        <span class="status-msg" id="statusMsg">Preparing ONNX Runtime Web…</span>
+        <span class="backend-badge remote" id="backendBadge">ONNX Web</span>
+        <button type="button" class="backend-toggle" id="backendToggle">切換至 CPU</button>
+        <button type="button" class="cache-clear" id="cacheClearBtn">清除模型快取</button>
+      </div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-meta">
+          <span id="progressLabel">Preparing model cache…</span>
+          <span id="progressMeta">--</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+      </div>
+      <div class="model-list">
+        <div class="model-item"><span class="dot pending" id="dot-runtime"></span>ONNX Runtime</div>
+        <div class="model-item"><span class="dot pending" id="dot-models"></span>Model download/cache</div>
+        <div class="model-item"><span class="dot pending" id="dot-output"></span>Audio outputs</div>
+      </div>
+    </div>
+
+    <div class="info-banner" style="margin-bottom:1.5rem">
+      <span class="bi">ℹ️</span>
+      <p>
+        模型方法參考 <a href="https://huggingface.co/Aratako/Irodori-TTS-600M-v3-VoiceDesign" target="_blank" rel="noopener">Aratako/Irodori-TTS-600M-v3-VoiceDesign</a>，ONNX 檔來源為 <a href="https://huggingface.co/endman100/Irodori-TTS-600M-v3-VoiceDesign-onnx" target="_blank" rel="noopener">endman100/Irodori-TTS-600M-v3-VoiceDesign-onnx</a>。
+        首次使用會下載並快取多個大型 ONNX 檔；需要 WebGPU 或大量記憶體。模型僅支援日文，caption 可描述聲線、情緒、語速、環境與表演方式，文字內可放 emoji 控制音效與情緒。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">① 設定</div>
+
+      <div class="form-row">
+        <div class="form-group wide">
+          <label for="referenceAudio">Reference Audio Upload（可選，用於 voice cloning）</label>
+          <input type="file" id="referenceAudio" accept="audio/*" />
+        </div>
+        <div class="form-group compact">
+          <label for="numCandidatesInput">Num Candidates</label>
+          <input type="number" id="numCandidatesInput" value="1" min="1" max="32" step="1" />
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group compact">
+          <label for="numStepsInput">Num Steps</label>
+          <input type="number" id="numStepsInput" value="40" min="1" max="120" step="1" />
+        </div>
+        <div class="form-group compact">
+          <label for="seedInput">Seed（空白=random）</label>
+          <input type="text" id="seedInput" inputmode="numeric" placeholder="random" />
+        </div>
+        <div class="form-group compact">
+          <label for="secondsInput">Seconds（空白=auto）</label>
+          <input type="text" id="secondsInput" inputmode="decimal" placeholder="auto" />
+        </div>
+        <div class="form-group compact">
+          <label for="durationScaleInput">Duration Scale</label>
+          <input type="number" id="durationScaleInput" value="1.0" min="0.5" max="1.5" step="0.01" />
+        </div>
+        <div class="form-group compact">
+          <label for="maxRefSecondsInput">Max Ref Seconds</label>
+          <input type="text" id="maxRefSecondsInput" inputmode="decimal" value="30" placeholder="30" />
+        </div>
+        <div class="form-group compact">
+          <label for="refNormalizeDbInput">Ref Normalize dB</label>
+          <input type="text" id="refNormalizeDbInput" inputmode="decimal" value="-16" placeholder="none" />
+        </div>
+      </div>
+
+      <details class="advanced-panel">
+        <summary>進階 CFG / Sampling 參數</summary>
+        <div class="form-row advanced-grid">
+          <div class="form-group">
+            <label for="tScheduleModeSel">Time Schedule</label>
+            <select id="tScheduleModeSel">
+              <option value="linear" selected>linear</option>
+              <option value="sway">sway</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="swayCoeffInput">Sway Coeff</label>
+            <input type="number" id="swayCoeffInput" value="-1.0" min="-1" max="1.5" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgModeSel">CFG Guidance Mode</label>
+            <select id="cfgModeSel">
+              <option value="independent" selected>independent</option>
+              <option value="joint">joint</option>
+              <option value="alternating">alternating</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cfgScaleTextInput">CFG Scale Text</label>
+            <input type="number" id="cfgScaleTextInput" value="3.0" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgScaleCaptionInput">CFG Scale Caption</label>
+            <input type="number" id="cfgScaleCaptionInput" value="4.0" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgScaleSpeakerInput">CFG Scale Speaker</label>
+            <input type="number" id="cfgScaleSpeakerInput" value="5.0" min="0" max="10" step="0.1" />
+          </div>
+          <div class="form-group">
+            <label for="cfgOverrideInput">CFG Scale Override（可選）</label>
+            <input type="text" id="cfgOverrideInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="cfgMinTInput">CFG Min t</label>
+            <input type="number" id="cfgMinTInput" value="0.5" min="0" max="1" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label for="cfgMaxTInput">CFG Max t</label>
+            <input type="number" id="cfgMaxTInput" value="1" min="0" max="1" step="0.01" />
+          </div>
+          <div class="form-group check-group">
+            <label for="contextKvCacheInput">Context KV Cache</label>
+            <label class="toggle-line"><input type="checkbox" id="contextKvCacheInput" checked /> Enable cache</label>
+          </div>
+          <div class="form-group check-group">
+            <label for="refEnsureMaxInput">Reference Peak Guard</label>
+            <label class="toggle-line"><input type="checkbox" id="refEnsureMaxInput" checked /> Ensure max <= 1.0</label>
+          </div>
+          <div class="form-group">
+            <label for="maxTextLenInput">Max Text Len（可選）</label>
+            <input type="text" id="maxTextLenInput" inputmode="numeric" placeholder="256" />
+          </div>
+          <div class="form-group">
+            <label for="maxCaptionLenInput">Max Caption Len（可選）</label>
+            <input type="text" id="maxCaptionLenInput" inputmode="numeric" placeholder="same as text" />
+          </div>
+          <div class="form-group">
+            <label for="truncationFactorInput">Truncation Factor（可選）</label>
+            <input type="text" id="truncationFactorInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="rescaleKInput">Rescale k（可選）</label>
+            <input type="text" id="rescaleKInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="rescaleSigmaInput">Rescale sigma（可選）</label>
+            <input type="text" id="rescaleSigmaInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvScaleInput">Speaker KV Scale（可選）</label>
+            <input type="text" id="speakerKvScaleInput" inputmode="decimal" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvMinTInput">Speaker KV Min t（可選）</label>
+            <input type="text" id="speakerKvMinTInput" inputmode="decimal" placeholder="optional" value="0.9" />
+          </div>
+          <div class="form-group">
+            <label for="speakerKvMaxLayersInput">Speaker KV Max Layers（可選）</label>
+            <input type="text" id="speakerKvMaxLayersInput" inputmode="numeric" placeholder="optional" />
+          </div>
+          <div class="form-group">
+            <label for="speakerUncondModeSel">Speaker Uncond Mode</label>
+            <select id="speakerUncondModeSel">
+              <option value="mask" selected>mask</option>
+              <option value="noise">noise</option>
+            </select>
+          </div>
+          <div class="form-group check-group">
+            <label for="trimTailInput">Trim Tail</label>
+            <label class="toggle-line"><input type="checkbox" id="trimTailInput" checked /> Enable trim</label>
+          </div>
+          <div class="form-group">
+            <label for="tailWindowSizeInput">Tail Window Size</label>
+            <input type="number" id="tailWindowSizeInput" value="20" min="1" max="200" step="1" />
+          </div>
+          <div class="form-group">
+            <label for="tailStdThresholdInput">Tail Std Threshold</label>
+            <input type="number" id="tailStdThresholdInput" value="0.05" min="0" max="1" step="0.01" />
+          </div>
+          <div class="form-group">
+            <label for="tailMeanThresholdInput">Tail Mean Threshold</label>
+            <input type="number" id="tailMeanThresholdInput" value="0.1" min="0" max="1" step="0.01" />
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <div class="card-title">② Voice Design Caption</div>
+      <textarea id="captionInput" placeholder="声・感情・話し方・距離感・環境などを日本語で指定してください。">落ち着いた大人の女性。近い距離感で、やわらかく自然に、少し微笑みながら丁寧に話している。</textarea>
+    </div>
+
+    <div class="card">
+      <div class="card-title">③ 輸入文字</div>
+      <div class="sample-row" aria-label="Sample prompts">
+        <button type="button" class="sample-chip" data-text="本日はお越しいただき、誠にありがとうございます。どうぞごゆっくりお過ごしください。" data-caption="落ち着いた大人の男性。フォーマルな場で、深く響く声で丁寧かつ歓迎の意を込めて話している。">フォーマル</button>
+        <button type="button" class="sample-chip" data-text="どうしてもっと早く教えてくれなかったの？私、ずっと待ってたのに。" data-caption="深く傷つき、今にも泣き出しそうな様子。声が震えており、悲痛なトーンで弱々しく話す。">悲痛</button>
+        <button type="button" class="sample-chip" data-text="あははっ、それ本当に言ってるの？…まぁ、君らしいけどね。" data-caption="余裕のある大人の男性。親しい相手に対して、くだけた雰囲気で呆れながらも楽しそうに話している。">emoji/演技</button>
+      </div>
+      <textarea id="textInput" placeholder="日本語テキストを入力してください。絵文字で感情や効果音を指定できます。">その森には、古い言い伝えがありました。月が最も高く昇る夜、静かに耳を澄ませば、風の歌声が聞こえるというのです。</textarea>
+      <div class="action-row">
+        <button class="btn btn-primary" id="generateBtn">🎙️ Generate</button>
+        <button class="btn btn-ghost" id="resetBtn" type="button">↺ Reset Params</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">④ 結果</div>
+      <div id="resultsArea">
+        <div class="results-placeholder">
+          <span class="icon">🎙️</span>
+          <p>Generated audio candidates will appear here.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card log-card hidden" id="logCard">
+      <div class="card-title">Run Log</div>
+      <pre id="runLog"></pre>
+    </div>
+
+  </main>
+
+  <script type="module" src="./index.js"></script>
+</body>
+</html>

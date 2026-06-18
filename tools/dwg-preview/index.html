@@ -100,6 +100,9 @@
           <label for="zoom-range">縮放</label>
           <input type="range" id="zoom-range" min="25" max="400" step="5" value="100" disabled />
           <span id="zoom-label">100%</span>
+          <label for="zoom-max">最大</label>
+          <input type="number" id="zoom-max" class="zoom-max-input" min="100" step="100" value="400" inputmode="numeric" />
+          <span class="zoom-max-unit">%</span>
           <span class="control-hint">滑鼠滾輪也可縮放</span>
         </div>
       </div>
@@ -119,6 +122,7 @@
       layers: new Map(),
       bbox: null,
       zoom: 1,
+      zoomMax: 4,
       panX: 0,
       panY: 0,
       fitScale: 1,
@@ -150,6 +154,7 @@
     const downloadBtn = document.getElementById('download-btn');
     const zoomRange = document.getElementById('zoom-range');
     const zoomLabel = document.getElementById('zoom-label');
+    const zoomMaxInput = document.getElementById('zoom-max');
     const layerList = document.getElementById('layer-list');
     const statusBox = document.getElementById('status-box');
     const canvasEmpty = document.getElementById('canvas-empty');
@@ -338,6 +343,10 @@ EOF`;
 
     zoomRange.addEventListener('input', () => {
       setZoom(Number(zoomRange.value) / 100);
+    });
+
+    zoomMaxInput.addEventListener('change', () => {
+      setZoomMax(Number(zoomMaxInput.value));
     });
 
     canvasWrap.addEventListener('wheel', event => {
@@ -698,7 +707,7 @@ EOF`;
     }
 
     function clampZoom(value) {
-      return Math.min(4, Math.max(0.25, value));
+      return Math.min(state.zoomMax, Math.max(0.25, value));
     }
 
     function setZoom(value, pivotEvent = null) {
@@ -712,6 +721,16 @@ EOF`;
       zoomLabel.textContent = `${zoomRange.value}%`;
       if (state.previewMode === 'svg') applySvgZoom();
       else draw();
+    }
+
+    function setZoomMax(percent) {
+      const nextPercent = Number.isFinite(percent) ? Math.max(100, Math.round(percent)) : 400;
+      state.zoomMax = nextPercent / 100;
+      zoomMaxInput.value = nextPercent;
+      zoomRange.max = nextPercent;
+      if (state.zoom > state.zoomMax) {
+        setZoom(state.zoomMax);
+      }
     }
 
     function adjustPanForZoom(event, previousZoom, nextZoom) {

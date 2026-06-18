@@ -566,6 +566,22 @@ a { text-decoration: none; color: inherit; }
   accent-color: var(--accent);
 }
 
+.zoom-max-input {
+  width: 5.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.6rem;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+  font: inherit;
+}
+
+.zoom-max-input:focus {
+  outline: 2px solid rgba(108, 99, 255, 0.35);
+  outline-offset: 1px;
+  border-color: var(--border-hover);
+}
+
 .control-hint {
   color: var(--text-muted);
   white-space: nowrap;
@@ -621,6 +637,10 @@ a { text-decoration: none; color: inherit; }
 
   .canvas-controls {
     flex-wrap: wrap;
+  }
+
+  .zoom-max-input {
+    width: 6.2rem;
   }
 
   .control-hint {

@@ -43,7 +43,7 @@
             <input type="file" id="file-input" accept=".dwg,.dxf,application/acad,application/dxf,text/plain" />
             <span class="upload-icon">⌖</span>
             <strong>拖曳 DWG / DXF 至此</strong>
-            <span class="upload-hint">支援 ASCII DXF 幾何預覽；DWG 會先偵測版本與檔案資訊</span>
+            <span class="upload-hint">DWG 透過 LibreDWG WebAssembly 本地解碼；DXF 使用輕量解析器</span>
           </label>
           <div class="upload-actions">
             <button type="button" class="btn btn-secondary" id="sample-btn">載入範例</button>
@@ -88,6 +88,7 @@
 
         <div class="canvas-wrap">
           <canvas id="preview-canvas" width="1100" height="720" aria-label="DWG/DXF 預覽畫布"></canvas>
+          <img id="svg-preview" class="svg-preview hidden" alt="DWG SVG 預覽" />
           <div class="canvas-empty" id="canvas-empty">
             <div class="empty-mark">DWG</div>
             <p>等待上傳檔案</p>
@@ -121,7 +122,17 @@
       offsetX: 0,
       offsetY: 0,
       hiddenLayers: new Set(),
+      previewMode: 'canvas',
+      svgUrl: '',
+      svgText: '',
+      dwgDatabase: null,
+      dwgStats: null,
+      dwgVersion: '',
     };
+
+    const LIBREDWG_DIST = './vendor/libredwg-web/dist/libredwg-web.js';
+    const LIBREDWG_WASM_PATH = './vendor/libredwg-web/wasm';
+    let libredwgRuntimePromise = null;
 
     const fileInput = document.getElementById('file-input');
     const dropZone = document.getElementById('drop-zone');
@@ -136,6 +147,7 @@
     const canvasEmpty = document.getElementById('canvas-empty');
     const previewSubtitle = document.getElementById('preview-subtitle');
     const canvas = document.getElementById('preview-canvas');
+    const svgPreview = document.getElementById('svg-preview');
     const ctx = canvas.getContext('2d');
 
     const meta = {
@@ -317,17 +329,29 @@ EOF`;
     zoomRange.addEventListener('input', () => {
       state.zoom = Number(zoomRange.value) / 100;
       zoomLabel.textContent = `${zoomRange.value}%`;
-      draw();
+      if (state.previewMode === 'svg') applySvgZoom();
+      else draw();
     });
 
     canvas.addEventListener('wheel', event => {
-      if (!state.entities.length) return;
+      if (!state.entities.length && state.previewMode !== 'svg') return;
       event.preventDefault();
       const next = Math.min(4, Math.max(0.25, state.zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
       state.zoom = next;
       zoomRange.value = Math.round(next * 100);
       zoomLabel.textContent = `${zoomRange.value}%`;
-      draw();
+      if (state.previewMode === 'svg') applySvgZoom();
+      else draw();
+    }, { passive: false });
+
+    svgPreview.addEventListener('wheel', event => {
+      if (state.previewMode !== 'svg') return;
+      event.preventDefault();
+      const next = Math.min(4, Math.max(0.25, state.zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+      state.zoom = next;
+      zoomRange.value = Math.round(next * 100);
+      zoomLabel.textContent = `${zoomRange.value}%`;
+      applySvgZoom();
     }, { passive: false });
 
     function readFile(file) {
@@ -340,7 +364,7 @@ EOF`;
         const ext = name.split('.').pop().toLowerCase();
 
         if (header.startsWith('AC10') && ext === 'dwg') {
-          loadBinaryDwg(name, file.size, header);
+          loadBinaryDwg(buffer, name, file.size, header);
           return;
         }
 
@@ -353,6 +377,16 @@ EOF`;
         loadUnsupported(name, file.size, header || ext.toUpperCase());
       };
       reader.readAsArrayBuffer(file);
+    }
+
+    async function getLibreDwgRuntime() {
+      if (!libredwgRuntimePromise) {
+        libredwgRuntimePromise = import(LIBREDWG_DIST).then(async mod => {
+          const libredwg = await mod.LibreDwg.create(LIBREDWG_WASM_PATH);
+          return { libredwg, Dwg_File_Type: mod.Dwg_File_Type };
+        });
+      }
+      return libredwgRuntimePromise;
     }
 
     function loadText(text, name, size, format) {
@@ -374,14 +408,17 @@ EOF`;
         return;
       }
 
-      setStatus('success', '已完成預覽解析', '幾何資料已在瀏覽器本地解析，沒有上傳任何檔案。');
+      state.previewMode = 'canvas';
+      clearSvgPreview();
+      canvas.classList.remove('canvas-hidden');
+      setStatus('success', '已完成 DXF 預覽解析', '幾何資料已在瀏覽器本地解析，沒有上傳任何檔案。');
       canvasEmpty.classList.add('hidden');
       previewSubtitle.textContent = '可使用縮放滑桿或滑鼠滾輪檢視細節';
       enableControls(true);
       fitToCanvas();
     }
 
-    function loadBinaryDwg(name, size, header) {
+    async function loadBinaryDwg(buffer, name, size, header) {
       resetState();
       state.fileName = name;
       state.fileSize = size;
@@ -391,11 +428,56 @@ EOF`;
       drawEmptyGrid();
       canvasEmpty.classList.remove('hidden');
       canvasEmpty.querySelector('.empty-mark').textContent = header;
-      canvasEmpty.querySelector('p').textContent = '已辨識為二進位 DWG';
-      previewSubtitle.textContent = '純靜態前端無法完整解碼二進位 DWG 幾何';
-      setStatus('warning', '已辨識 DWG，但無法直接渲染', 'DWG 是二進位 CAD 格式；此工具可顯示版本與檔案資訊。若要看到幾何，請先匯出為 ASCII DXF 再上傳。');
+      canvasEmpty.querySelector('p').textContent = '正在載入 LibreDWG WASM';
+      previewSubtitle.textContent = '二進位 DWG 將透過 LibreDWG WebAssembly 本地解碼';
+      setStatus('warning', '正在解碼 DWG', '首次使用會載入約 6 MB 的 LibreDWG WebAssembly runtime，檔案仍保留在瀏覽器本地。');
       enableControls(false);
       resetBtn.disabled = false;
+
+      let dwgPtr = null;
+      try {
+        const { libredwg, Dwg_File_Type } = await getLibreDwgRuntime();
+        dwgPtr = libredwg.dwg_read_data(buffer, Dwg_File_Type.DWG);
+        if (!dwgPtr) throw new Error('LibreDWG 未回傳可用的 Dwg_Data 指標。');
+
+        state.dwgVersion = formatDwgVersion(libredwg.dwg_get_version_type(dwgPtr), header);
+        const converted = libredwg.convertEx(dwgPtr);
+        state.dwgDatabase = converted.database;
+        state.dwgStats = converted.stats;
+        state.entities = normaliseDwgEntities(state.dwgDatabase.entities);
+        state.layers = buildLayerMap(state.entities);
+        state.format = `Binary DWG ${state.dwgVersion || header}`;
+        renderDwgSvg(libredwg);
+
+        updateMeta();
+        updateLayers();
+        canvasEmpty.classList.add('hidden');
+        canvas.classList.add('canvas-hidden');
+        state.previewMode = 'svg';
+        state.zoom = 1;
+        zoomRange.value = 100;
+        zoomLabel.textContent = '100%';
+        applySvgZoom();
+        enableControls(true);
+        previewSubtitle.textContent = 'LibreDWG WASM 已轉成 SVG，可縮放並依圖層重新產生預覽';
+        const skipped = state.dwgStats?.unknownEntityCount ? `；略過 ${state.dwgStats.unknownEntityCount} 個未知實體` : '';
+        setStatus('success', '已完成 DWG WASM 預覽', `LibreDWG 已在瀏覽器本地解碼二進位 DWG${skipped}。`);
+      } catch (error) {
+        console.error(error);
+        canvas.classList.remove('canvas-hidden');
+        clearSvgPreview();
+        drawEmptyGrid();
+        canvasEmpty.classList.remove('hidden');
+        canvasEmpty.querySelector('.empty-mark').textContent = header;
+        canvasEmpty.querySelector('p').textContent = 'DWG 解碼失敗';
+        previewSubtitle.textContent = 'LibreDWG 無法解碼此 DWG，仍保留檔案資訊';
+        setStatus('error', 'LibreDWG 解碼失敗', error?.message || '此 DWG 版本或內容暫時無法由目前 WASM runtime 解析。');
+      } finally {
+        try {
+          const runtime = await libredwgRuntimePromise;
+          if (dwgPtr) runtime?.libredwg?.dwg_free(dwgPtr);
+        } catch {}
+      }
     }
 
     function loadUnsupported(name, size, format) {
@@ -405,6 +487,8 @@ EOF`;
       state.format = format || 'Unknown';
       updateMeta();
       updateLayers();
+      clearSvgPreview();
+      canvas.classList.remove('canvas-hidden');
       drawEmptyGrid();
       setStatus('error', '無法辨識檔案內容', '請確認檔案是 ASCII DXF，或將 DWG 轉成 DXF 後再預覽。');
       resetBtn.disabled = false;
@@ -451,6 +535,46 @@ EOF`;
       }
 
       return entities;
+    }
+
+    function normaliseDwgEntities(entities) {
+      return (entities || []).map(entity => ({
+        type: entity.type || 'UNKNOWN',
+        layer: entity.layer || '0',
+        source: entity,
+      }));
+    }
+
+    function renderDwgSvg(libredwg) {
+      if (!state.dwgDatabase) return;
+      const filtered = {
+        ...state.dwgDatabase,
+        entities: state.dwgDatabase.entities.filter(entity => !state.hiddenLayers.has(entity.layer || '0')),
+      };
+      const svgText = libredwg.dwg_to_svg(filtered);
+      setSvgPreview(svgText);
+    }
+
+    function setSvgPreview(svgText) {
+      clearSvgPreview();
+      state.svgText = svgText;
+      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      state.svgUrl = URL.createObjectURL(blob);
+      svgPreview.src = state.svgUrl;
+      svgPreview.classList.remove('hidden');
+    }
+
+    function clearSvgPreview() {
+      if (state.svgUrl) URL.revokeObjectURL(state.svgUrl);
+      state.svgUrl = '';
+      state.svgText = '';
+      svgPreview.removeAttribute('src');
+      svgPreview.classList.add('hidden');
+      svgPreview.style.transform = '';
+    }
+
+    function applySvgZoom() {
+      svgPreview.style.transform = `scale(${state.zoom})`;
     }
 
     function parseEntity(type, data) {
@@ -563,6 +687,13 @@ EOF`;
     }
 
     function fitToCanvas() {
+      if (state.previewMode === 'svg') {
+        state.zoom = 1;
+        zoomRange.value = 100;
+        zoomLabel.textContent = '100%';
+        applySvgZoom();
+        return;
+      }
       if (!state.bbox) return;
       const width = Math.max(1, state.bbox.maxX - state.bbox.minX);
       const height = Math.max(1, state.bbox.maxY - state.bbox.minY);
@@ -707,7 +838,11 @@ EOF`;
         row.querySelector('input').addEventListener('change', event => {
           if (event.target.checked) state.hiddenLayers.delete(layer);
           else state.hiddenLayers.add(layer);
-          draw();
+          if (state.previewMode === 'svg') {
+            getLibreDwgRuntime().then(({ libredwg }) => renderDwgSvg(libredwg));
+          } else {
+            draw();
+          }
         });
         layerList.appendChild(row);
       });
@@ -732,6 +867,8 @@ EOF`;
       updateLayers();
       enableControls(false);
       resetBtn.disabled = true;
+      clearSvgPreview();
+      canvas.classList.remove('canvas-hidden');
       canvasEmpty.classList.remove('hidden');
       canvasEmpty.querySelector('.empty-mark').textContent = 'DWG';
       canvasEmpty.querySelector('p').textContent = '等待上傳檔案';
@@ -754,14 +891,41 @@ EOF`;
       state.offsetX = 0;
       state.offsetY = 0;
       state.hiddenLayers = new Set();
+      state.previewMode = 'canvas';
+      state.dwgDatabase = null;
+      state.dwgStats = null;
+      state.dwgVersion = '';
     }
 
     function downloadPng() {
+      if (state.previewMode === 'svg' && state.svgUrl) {
+        downloadSvgPreviewPng();
+        return;
+      }
       const link = document.createElement('a');
       const base = (state.fileName || 'dwg-preview').replace(/\.[^.]+$/, '');
       link.download = `${base}_preview.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+    }
+
+    function downloadSvgPreviewPng() {
+      const image = new Image();
+      image.onload = () => {
+        const out = document.createElement('canvas');
+        out.width = Math.max(1, image.naturalWidth || 1200);
+        out.height = Math.max(1, image.naturalHeight || 800);
+        const outCtx = out.getContext('2d');
+        outCtx.fillStyle = '#101726';
+        outCtx.fillRect(0, 0, out.width, out.height);
+        outCtx.drawImage(image, 0, 0, out.width, out.height);
+        const link = document.createElement('a');
+        const base = (state.fileName || 'dwg-preview').replace(/\.[^.]+$/, '');
+        link.download = `${base}_preview.png`;
+        link.href = out.toDataURL('image/png');
+        link.click();
+      };
+      image.src = state.svgUrl;
     }
 
     function decodeAscii(bytes) {
@@ -772,6 +936,12 @@ EOF`;
       if (bytes < 1024) return `${bytes} B`;
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
       return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    function formatDwgVersion(version, fallback) {
+      if (!version) return fallback;
+      if (typeof version === 'string') return version;
+      return version.description || version.type || version.hdr || fallback;
     }
 
     function escapeHtml(text) {

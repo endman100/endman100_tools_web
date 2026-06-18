@@ -452,6 +452,27 @@ a { text-decoration: none; color: inherit; }
   height: 100%;
 }
 
+#preview-canvas.canvas-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.svg-preview {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 1rem;
+  transform-origin: center center;
+  transition: transform 0.18s ease;
+  background: #101726;
+}
+
+.svg-preview.hidden {
+  display: none;
+}
+
 .canvas-empty {
   position: absolute;
   inset: 0;

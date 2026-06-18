@@ -89,6 +89,7 @@
         <div class="canvas-wrap">
           <canvas id="preview-canvas" width="1100" height="720" aria-label="DWG/DXF 預覽畫布"></canvas>
           <img id="svg-preview" class="svg-preview hidden" alt="DWG SVG 預覽" />
+          <div id="svg-inline-preview" class="svg-inline-preview hidden" aria-label="DWG SVG 預覽"></div>
           <div class="canvas-empty" id="canvas-empty">
             <div class="empty-mark">DWG</div>
             <p>等待上傳檔案</p>
@@ -148,6 +149,7 @@
     const previewSubtitle = document.getElementById('preview-subtitle');
     const canvas = document.getElementById('preview-canvas');
     const svgPreview = document.getElementById('svg-preview');
+    const svgInlinePreview = document.getElementById('svg-inline-preview');
     const ctx = canvas.getContext('2d');
 
     const meta = {
@@ -557,11 +559,25 @@ EOF`;
 
     function setSvgPreview(svgText) {
       clearSvgPreview();
-      state.svgText = svgText;
-      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      state.svgText = normaliseSvgSize(svgText);
+      svgInlinePreview.innerHTML = state.svgText;
+      svgInlinePreview.classList.remove('hidden');
+      const blob = new Blob([state.svgText], { type: 'image/svg+xml;charset=utf-8' });
       state.svgUrl = URL.createObjectURL(blob);
       svgPreview.src = state.svgUrl;
-      svgPreview.classList.remove('hidden');
+      svgPreview.classList.add('hidden');
+    }
+
+    function normaliseSvgSize(svgText) {
+      const viewBox = svgText.match(/viewBox="([^"]+)"/i)?.[1];
+      if (!viewBox) return svgText;
+      const parts = viewBox.trim().split(/\s+/).map(Number);
+      if (parts.length !== 4 || parts.some(value => !Number.isFinite(value))) return svgText;
+      const width = Math.max(1, Math.ceil(Math.abs(parts[2])));
+      const height = Math.max(1, Math.ceil(Math.abs(parts[3])));
+      return svgText
+        .replace(/\swidth="[^"]*"/i, ` width="${width}"`)
+        .replace(/\sheight="[^"]*"/i, ` height="${height}"`);
     }
 
     function clearSvgPreview() {
@@ -571,10 +587,14 @@ EOF`;
       svgPreview.removeAttribute('src');
       svgPreview.classList.add('hidden');
       svgPreview.style.transform = '';
+      svgInlinePreview.innerHTML = '';
+      svgInlinePreview.classList.add('hidden');
+      svgInlinePreview.style.transform = '';
     }
 
     function applySvgZoom() {
       svgPreview.style.transform = `scale(${state.zoom})`;
+      svgInlinePreview.style.transform = `scale(${state.zoom})`;
     }
 
     function parseEntity(type, data) {

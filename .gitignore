@@ -8,3 +8,4 @@ tools/stable-audio-hf-local/**/*.pt
 tools/stable-audio-hf-local/**/*.pth
 tools/stable-audio-hf-local/**/*.npz
 *.pyc
+test-output/

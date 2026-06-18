@@ -444,6 +444,22 @@ a { text-decoration: none; color: inherit; }
   overflow: hidden;
   background: #101726;
   aspect-ratio: 11 / 7.2;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+
+.canvas-wrap.is-interactive {
+  cursor: grab;
+  touch-action: none;
+}
+
+.canvas-wrap.is-interactive.panning {
+  cursor: grabbing;
+}
+
+.canvas-wrap.panning .svg-preview,
+.canvas-wrap.panning .svg-inline-preview {
+  transition: none;
 }
 
 #preview-canvas {
@@ -465,8 +481,10 @@ a { text-decoration: none; color: inherit; }
   object-fit: contain;
   padding: 1rem;
   transform-origin: center center;
-  transition: transform 0.18s ease;
+  transition: transform 0.12s ease;
   background: #101726;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .svg-preview.hidden {
@@ -482,8 +500,9 @@ a { text-decoration: none; color: inherit; }
   justify-content: center;
   padding: 1rem;
   transform-origin: center center;
-  transition: transform 0.18s ease;
+  transition: transform 0.12s ease;
   background: #101726;
+  user-select: none;
 }
 
 .svg-inline-preview.hidden {
@@ -494,6 +513,11 @@ a { text-decoration: none; color: inherit; }
   width: 100%;
   height: 100%;
   display: block;
+  pointer-events: none;
+}
+
+.svg-inline-preview :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  vector-effect: non-scaling-stroke;
 }
 
 .canvas-empty {

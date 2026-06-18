@@ -119,9 +119,16 @@
       layers: new Map(),
       bbox: null,
       zoom: 1,
+      panX: 0,
+      panY: 0,
       fitScale: 1,
       offsetX: 0,
       offsetY: 0,
+      isPanning: false,
+      panStartX: 0,
+      panStartY: 0,
+      panOriginX: 0,
+      panOriginY: 0,
       hiddenLayers: new Set(),
       previewMode: 'canvas',
       svgUrl: '',
@@ -147,6 +154,7 @@
     const statusBox = document.getElementById('status-box');
     const canvasEmpty = document.getElementById('canvas-empty');
     const previewSubtitle = document.getElementById('preview-subtitle');
+    const canvasWrap = document.querySelector('.canvas-wrap');
     const canvas = document.getElementById('preview-canvas');
     const svgPreview = document.getElementById('svg-preview');
     const svgInlinePreview = document.getElementById('svg-inline-preview');
@@ -329,32 +337,48 @@ EOF`;
     downloadBtn.addEventListener('click', downloadPng);
 
     zoomRange.addEventListener('input', () => {
-      state.zoom = Number(zoomRange.value) / 100;
-      zoomLabel.textContent = `${zoomRange.value}%`;
+      setZoom(Number(zoomRange.value) / 100);
+    });
+
+    canvasWrap.addEventListener('wheel', event => {
+      if (!hasPreviewContent()) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const next = clampZoom(state.zoom + (event.deltaY < 0 ? 0.12 : -0.12));
+      setZoom(next, event);
+    }, { passive: false });
+
+    canvasWrap.addEventListener('pointerdown', event => {
+      if (!hasPreviewContent() || event.button !== 0) return;
+      event.preventDefault();
+      state.isPanning = true;
+      state.panStartX = event.clientX;
+      state.panStartY = event.clientY;
+      state.panOriginX = state.panX;
+      state.panOriginY = state.panY;
+      canvasWrap.classList.add('panning');
+      canvasWrap.setPointerCapture(event.pointerId);
+    });
+
+    canvasWrap.addEventListener('pointermove', event => {
+      if (!state.isPanning) return;
+      event.preventDefault();
+      state.panX = state.panOriginX + event.clientX - state.panStartX;
+      state.panY = state.panOriginY + event.clientY - state.panStartY;
       if (state.previewMode === 'svg') applySvgZoom();
       else draw();
     });
 
-    canvas.addEventListener('wheel', event => {
-      if (!state.entities.length && state.previewMode !== 'svg') return;
-      event.preventDefault();
-      const next = Math.min(4, Math.max(0.25, state.zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
-      state.zoom = next;
-      zoomRange.value = Math.round(next * 100);
-      zoomLabel.textContent = `${zoomRange.value}%`;
-      if (state.previewMode === 'svg') applySvgZoom();
-      else draw();
-    }, { passive: false });
-
-    svgPreview.addEventListener('wheel', event => {
-      if (state.previewMode !== 'svg') return;
-      event.preventDefault();
-      const next = Math.min(4, Math.max(0.25, state.zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
-      state.zoom = next;
-      zoomRange.value = Math.round(next * 100);
-      zoomLabel.textContent = `${zoomRange.value}%`;
-      applySvgZoom();
-    }, { passive: false });
+    ['pointerup', 'pointercancel'].forEach(type => {
+      canvasWrap.addEventListener(type, event => {
+        if (!state.isPanning) return;
+        state.isPanning = false;
+        canvasWrap.classList.remove('panning');
+        if (canvasWrap.hasPointerCapture(event.pointerId)) {
+          canvasWrap.releasePointerCapture(event.pointerId);
+        }
+      });
+    });
 
     function readFile(file) {
       const reader = new FileReader();
@@ -457,6 +481,7 @@ EOF`;
         canvas.classList.add('canvas-hidden');
         state.previewMode = 'svg';
         state.zoom = 1;
+        resetPan();
         zoomRange.value = 100;
         zoomLabel.textContent = '100%';
         applySvgZoom();
@@ -562,10 +587,14 @@ EOF`;
       state.svgText = normaliseSvgSize(svgText);
       svgInlinePreview.innerHTML = state.svgText;
       svgInlinePreview.classList.remove('hidden');
-      const blob = new Blob([state.svgText], { type: 'image/svg+xml;charset=utf-8' });
-      state.svgUrl = URL.createObjectURL(blob);
-      svgPreview.src = state.svgUrl;
+      focusSvgPreviewGeometry();
+      refreshSvgBlob();
+      requestAnimationFrame(() => {
+        focusSvgPreviewGeometry();
+        refreshSvgBlob();
+      });
       svgPreview.classList.add('hidden');
+      applySvgZoom();
     }
 
     function normaliseSvgSize(svgText) {
@@ -590,11 +619,124 @@ EOF`;
       svgInlinePreview.innerHTML = '';
       svgInlinePreview.classList.add('hidden');
       svgInlinePreview.style.transform = '';
+      canvasWrap.classList.remove('panning');
+    }
+
+    function refreshSvgBlob() {
+      const svg = svgInlinePreview.querySelector('svg');
+      const svgText = svg ? new XMLSerializer().serializeToString(svg) : state.svgText;
+      if (!svgText) return;
+      if (state.svgUrl) URL.revokeObjectURL(state.svgUrl);
+      state.svgText = svgText;
+      const blob = new Blob([state.svgText], { type: 'image/svg+xml;charset=utf-8' });
+      state.svgUrl = URL.createObjectURL(blob);
+      svgPreview.src = state.svgUrl;
     }
 
     function applySvgZoom() {
-      svgPreview.style.transform = `scale(${state.zoom})`;
-      svgInlinePreview.style.transform = `scale(${state.zoom})`;
+      const transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+      svgPreview.style.transform = transform;
+      svgInlinePreview.style.transform = transform;
+    }
+
+    function focusSvgPreviewGeometry() {
+      const svg = svgInlinePreview.querySelector('svg');
+      if (!svg) return;
+
+      let bounds = null;
+      try {
+        const box = svg.getBBox();
+        if (Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0) {
+          bounds = {
+            minX: box.x,
+            minY: box.y,
+            maxX: box.x + box.width,
+            maxY: box.y + box.height,
+          };
+        }
+      } catch {
+        bounds = null;
+      }
+
+      if (!bounds) {
+        bounds = [...svg.querySelectorAll('path,line,polyline,polygon,circle,ellipse,rect,text')]
+          .reduce((box, element) => {
+            try {
+              const next = element.getBBox();
+              if (!Number.isFinite(next.x) || !Number.isFinite(next.y) || next.width <= 0 || next.height <= 0) {
+                return box;
+              }
+              if (!box) {
+                return {
+                  minX: next.x,
+                  minY: next.y,
+                  maxX: next.x + next.width,
+                  maxY: next.y + next.height,
+                };
+              }
+              box.minX = Math.min(box.minX, next.x);
+              box.minY = Math.min(box.minY, next.y);
+              box.maxX = Math.max(box.maxX, next.x + next.width);
+              box.maxY = Math.max(box.maxY, next.y + next.height);
+              return box;
+            } catch {
+              return box;
+            }
+          }, null);
+      }
+
+      if (!bounds) return;
+      const width = Math.max(1, bounds.maxX - bounds.minX);
+      const height = Math.max(1, bounds.maxY - bounds.minY);
+      const padding = Math.max(width, height) * 0.04;
+      svg.setAttribute('viewBox', `${bounds.minX - padding} ${bounds.minY - padding} ${width + padding * 2} ${height + padding * 2}`);
+      svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    }
+
+    function hasPreviewContent() {
+      return state.previewMode === 'svg' || state.entities.length > 0;
+    }
+
+    function clampZoom(value) {
+      return Math.min(4, Math.max(0.25, value));
+    }
+
+    function setZoom(value, pivotEvent = null) {
+      const next = clampZoom(value);
+      const previous = state.zoom;
+      if (pivotEvent && previous > 0 && next !== previous) {
+        adjustPanForZoom(pivotEvent, previous, next);
+      }
+      state.zoom = next;
+      zoomRange.value = Math.round(next * 100);
+      zoomLabel.textContent = `${zoomRange.value}%`;
+      if (state.previewMode === 'svg') applySvgZoom();
+      else draw();
+    }
+
+    function adjustPanForZoom(event, previousZoom, nextZoom) {
+      const rect = canvasWrap.getBoundingClientRect();
+      const ratio = nextZoom / previousZoom;
+      const pointerX = event.clientX - rect.left - rect.width / 2 - state.panX;
+      const pointerY = event.clientY - rect.top - rect.height / 2 - state.panY;
+      state.panX -= pointerX * (ratio - 1);
+      state.panY -= pointerY * (ratio - 1);
+    }
+
+    function resetPan() {
+      state.panX = 0;
+      state.panY = 0;
+      state.isPanning = false;
+      canvasWrap.classList.remove('panning');
+    }
+
+    function canvasPan() {
+      const rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return { x: state.panX, y: state.panY };
+      return {
+        x: state.panX * canvas.width / rect.width,
+        y: state.panY * canvas.height / rect.height,
+      };
     }
 
     function parseEntity(type, data) {
@@ -709,6 +851,7 @@ EOF`;
     function fitToCanvas() {
       if (state.previewMode === 'svg') {
         state.zoom = 1;
+        resetPan();
         zoomRange.value = 100;
         zoomLabel.textContent = '100%';
         applySvgZoom();
@@ -719,6 +862,7 @@ EOF`;
       const height = Math.max(1, state.bbox.maxY - state.bbox.minY);
       state.fitScale = Math.min((canvas.width - 96) / width, (canvas.height - 96) / height);
       state.zoom = 1;
+      resetPan();
       zoomRange.value = 100;
       zoomLabel.textContent = '100%';
       state.offsetX = canvas.width / 2 - (state.bbox.minX + width / 2) * state.fitScale;
@@ -728,9 +872,10 @@ EOF`;
 
     function worldToCanvas(x, y) {
       const scale = state.fitScale * state.zoom;
+      const pan = canvasPan();
       return {
-        x: x * scale + state.offsetX,
-        y: -y * scale + state.offsetY,
+        x: x * scale + state.offsetX + pan.x,
+        y: -y * scale + state.offsetY + pan.y,
       };
     }
 
@@ -878,6 +1023,7 @@ EOF`;
       downloadBtn.disabled = !enabled;
       zoomRange.disabled = !enabled;
       resetBtn.disabled = false;
+      canvasWrap.classList.toggle('is-interactive', enabled);
     }
 
     function resetAll() {
@@ -907,9 +1053,16 @@ EOF`;
       state.layers = new Map();
       state.bbox = null;
       state.zoom = 1;
+      state.panX = 0;
+      state.panY = 0;
       state.fitScale = 1;
       state.offsetX = 0;
       state.offsetY = 0;
+      state.isPanning = false;
+      state.panStartX = 0;
+      state.panStartY = 0;
+      state.panOriginX = 0;
+      state.panOriginY = 0;
       state.hiddenLayers = new Set();
       state.previewMode = 'canvas';
       state.dwgDatabase = null;

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>圖片滑桿比對工具 — Endman100 Tools</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <!-- Background glow -->
+  <div class="bg-glow"></div>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">圖片比對</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="tool-page compare-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">⇆</div>
+      <div>
+        <h1>圖片滑桿比對工具</h1>
+        <p>上傳兩張圖片，使用滑桿快速比較差異</p>
+      </div>
+    </div>
+
+    <section class="compare-layout">
+      <div class="card uploader-card">
+        <div class="card-title">① 上傳圖片</div>
+        <div class="upload-grid">
+          <label class="upload-area" id="drop-before" for="before-input">
+            <input type="file" id="before-input" accept="image/*" />
+            <span class="upload-badge">A</span>
+            <span class="upload-icon">🖼️</span>
+            <strong>第一張圖片</strong>
+            <span id="before-meta" class="upload-hint">拖曳或點擊上傳 PNG、JPG、WebP</span>
+          </label>
+
+          <label class="upload-area" id="drop-after" for="after-input">
+            <input type="file" id="after-input" accept="image/*" />
+            <span class="upload-badge">B</span>
+            <span class="upload-icon">🖼️</span>
+            <strong>第二張圖片</strong>
+            <span id="after-meta" class="upload-hint">拖曳或點擊上傳 PNG、JPG、WebP</span>
+          </label>
+        </div>
+
+        <div class="compare-actions">
+          <button type="button" class="btn btn-ghost" id="swap-btn">⇄ 交換 A / B</button>
+          <button type="button" class="btn btn-ghost" id="center-btn">◎ 回到 50%</button>
+          <button type="button" class="btn btn-ghost" id="reset-btn">↺ 重新上傳</button>
+        </div>
+      </div>
+
+      <div class="card preview-card">
+        <div class="preview-header">
+          <div>
+            <div class="card-title">② 滑桿比對</div>
+            <p id="preview-subtitle">兩張圖片都上傳後即可拖曳分割線比較</p>
+          </div>
+          <span id="slider-value" class="slider-value">50%</span>
+        </div>
+
+        <div class="compare-stage" id="compare-stage" aria-label="圖片滑桿比對預覽">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-icon">⇆</div>
+            <p>等待兩張圖片</p>
+          </div>
+
+          <img id="before-image" class="compare-image base-image hidden" alt="第一張圖片預覽" />
+          <div id="after-clip" class="after-clip hidden">
+            <img id="after-image" class="compare-image" alt="第二張圖片預覽" />
+          </div>
+
+          <div class="compare-label compare-label-left hidden" id="before-label">A</div>
+          <div class="compare-label compare-label-right hidden" id="after-label">B</div>
+          <div class="compare-divider hidden" id="compare-divider">
+            <span class="divider-handle">↔</span>
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <span>A</span>
+          <input type="range" id="compare-slider" min="0" max="100" value="50" aria-label="圖片比對比例" />
+          <span>B</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    const state = {
+      before: null,
+      after: null,
+      beforeUrl: '',
+      afterUrl: '',
+      slider: 50,
+      dragging: false,
+    };
+
+    const beforeInput = document.getElementById('before-input');
+    const afterInput = document.getElementById('after-input');
+    const beforeImage = document.getElementById('before-image');
+    const afterImage = document.getElementById('after-image');
+    const afterClip = document.getElementById('after-clip');
+    const stage = document.getElementById('compare-stage');
+    const divider = document.getElementById('compare-divider');
+    const slider = document.getElementById('compare-slider');
+    const sliderValue = document.getElementById('slider-value');
+    const emptyState = document.getElementById('empty-state');
+    const previewSubtitle = document.getElementById('preview-subtitle');
+    const beforeMeta = document.getElementById('before-meta');
+    const afterMeta = document.getElementById('after-meta');
+    const beforeLabel = document.getElementById('before-label');
+    const afterLabel = document.getElementById('after-label');
+
+    beforeInput.addEventListener('change', () => {
+      if (beforeInput.files[0]) loadImage('before', beforeInput.files[0]);
+    });
+
+    afterInput.addEventListener('change', () => {
+      if (afterInput.files[0]) loadImage('after', afterInput.files[0]);
+    });
+
+    setupDropZone('drop-before', 'before');
+    setupDropZone('drop-after', 'after');
+
+    slider.addEventListener('input', () => setSlider(Number(slider.value)));
+    document.getElementById('center-btn').addEventListener('click', () => setSlider(50));
+    document.getElementById('reset-btn').addEventListener('click', resetAll);
+    document.getElementById('swap-btn').addEventListener('click', swapImages);
+
+    stage.addEventListener('pointerdown', event => {
+      if (!hasBothImages()) return;
+      state.dragging = true;
+      stage.setPointerCapture(event.pointerId);
+      updateSliderFromPointer(event);
+    });
+
+    stage.addEventListener('pointermove', event => {
+      if (!state.dragging) return;
+      updateSliderFromPointer(event);
+    });
+
+    stage.addEventListener('pointerup', event => {
+      state.dragging = false;
+      if (stage.hasPointerCapture(event.pointerId)) {
+        stage.releasePointerCapture(event.pointerId);
+      }
+    });
+
+    stage.addEventListener('pointercancel', () => {
+      state.dragging = false;
+    });
+
+    function setupDropZone(id, target) {
+      const zone = document.getElementById(id);
+      ['dragenter', 'dragover'].forEach(type => {
+        zone.addEventListener(type, event => {
+          event.preventDefault();
+          zone.classList.add('dragover');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(type => {
+        zone.addEventListener(type, event => {
+          event.preventDefault();
+          zone.classList.remove('dragover');
+        });
+      });
+
+      zone.addEventListener('drop', event => {
+        const file = event.dataTransfer.files[0];
+        if (file && file.type.startsWith('image/')) {
+          loadImage(target, file);
+        }
+      });
+    }
+
+    function loadImage(target, file) {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        revokeUrl(target);
+        state[target] = {
+          file,
+          width: image.naturalWidth,
+          height: image.naturalHeight,
+        };
+        state[`${target}Url`] = url;
+        updateImage(target, url, image);
+        updateUi();
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        alert('無法載入圖片，請確認檔案格式正確。');
+      };
+      image.src = url;
+    }
+
+    function updateImage(target, url, image) {
+      const imgEl = target === 'before' ? beforeImage : afterImage;
+      const metaEl = target === 'before' ? beforeMeta : afterMeta;
+      imgEl.src = url;
+      metaEl.textContent = `${image.naturalWidth} × ${image.naturalHeight}px · ${formatBytes(state[target].file.size)}`;
+    }
+
+    function updateUi() {
+      const ready = hasBothImages();
+      emptyState.classList.toggle('hidden', ready);
+      beforeImage.classList.toggle('hidden', !state.before);
+      afterClip.classList.toggle('hidden', !state.after);
+      divider.classList.toggle('hidden', !ready);
+      beforeLabel.classList.toggle('hidden', !state.before);
+      afterLabel.classList.toggle('hidden', !state.after);
+      slider.disabled = !ready;
+      previewSubtitle.textContent = ready
+        ? '拖曳分割線或下方滑桿，像 ComfyUI Image Comparer 一樣快速掃過差異'
+        : '兩張圖片都上傳後即可拖曳分割線比較';
+      setSlider(state.slider);
+    }
+
+    function setSlider(value) {
+      state.slider = Math.max(0, Math.min(100, value));
+      slider.value = String(state.slider);
+      sliderValue.textContent = `${Math.round(state.slider)}%`;
+      afterClip.style.clipPath = `inset(0 0 0 ${state.slider}%)`;
+      divider.style.left = `${state.slider}%`;
+    }
+
+    function updateSliderFromPointer(event) {
+      const rect = stage.getBoundingClientRect();
+      const pct = ((event.clientX - rect.left) / rect.width) * 100;
+      setSlider(pct);
+    }
+
+    function swapImages() {
+      if (!state.before && !state.after) return;
+
+      const before = state.before;
+      const beforeUrl = state.beforeUrl;
+      state.before = state.after;
+      state.beforeUrl = state.afterUrl;
+      state.after = before;
+      state.afterUrl = beforeUrl;
+
+      beforeImage.src = state.beforeUrl || '';
+      afterImage.src = state.afterUrl || '';
+      beforeMeta.textContent = state.before ? `${state.before.width} × ${state.before.height}px · ${formatBytes(state.before.file.size)}` : '拖曳或點擊上傳 PNG、JPG、WebP';
+      afterMeta.textContent = state.after ? `${state.after.width} × ${state.after.height}px · ${formatBytes(state.after.file.size)}` : '拖曳或點擊上傳 PNG、JPG、WebP';
+      updateUi();
+    }
+
+    function resetAll() {
+      revokeUrl('before');
+      revokeUrl('after');
+      state.before = null;
+      state.after = null;
+      state.beforeUrl = '';
+      state.afterUrl = '';
+      beforeInput.value = '';
+      afterInput.value = '';
+      beforeImage.removeAttribute('src');
+      afterImage.removeAttribute('src');
+      beforeMeta.textContent = '拖曳或點擊上傳 PNG、JPG、WebP';
+      afterMeta.textContent = '拖曳或點擊上傳 PNG、JPG、WebP';
+      setSlider(50);
+      updateUi();
+    }
+
+    function revokeUrl(target) {
+      const key = `${target}Url`;
+      if (state[key]) {
+        URL.revokeObjectURL(state[key]);
+      }
+    }
+
+    function hasBothImages() {
+      return Boolean(state.before && state.after);
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const units = ['B', 'KB', 'MB', 'GB'];
+      const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / Math.pow(1024, idx)).toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+    }
+
+    updateUi();
+  </script>
+</body>
+</html>

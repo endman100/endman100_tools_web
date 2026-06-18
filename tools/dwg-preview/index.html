@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DWG 預覽工具 — Endman100 Tools</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">🛠</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">DWG 預覽</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page dwg-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">DWG</div>
+      <div>
+        <h1>DWG 預覽工具</h1>
+        <p>上傳 DWG / DXF 檔案，快速檢視可解析的線段、圓、弧線、多段線與文字標記。</p>
+      </div>
+    </div>
+
+    <section class="dwg-layout">
+      <div class="left-panel">
+        <div class="card">
+          <div class="card-title">① 上傳檔案</div>
+          <label class="upload-area" id="drop-zone" for="file-input">
+            <input type="file" id="file-input" accept=".dwg,.dxf,application/acad,application/dxf,text/plain" />
+            <span class="upload-icon">⌖</span>
+            <strong>拖曳 DWG / DXF 至此</strong>
+            <span class="upload-hint">支援 ASCII DXF 幾何預覽；DWG 會先偵測版本與檔案資訊</span>
+          </label>
+          <div class="upload-actions">
+            <button type="button" class="btn btn-secondary" id="sample-btn">載入範例</button>
+            <button type="button" class="btn btn-ghost" id="reset-btn" disabled>重新開始</button>
+          </div>
+        </div>
+
+        <div class="card info-card">
+          <div class="card-title">② 檔案資訊</div>
+          <dl class="meta-list">
+            <div><dt>檔名</dt><dd id="meta-name">尚未載入</dd></div>
+            <div><dt>格式</dt><dd id="meta-format">-</dd></div>
+            <div><dt>大小</dt><dd id="meta-size">-</dd></div>
+            <div><dt>實體</dt><dd id="meta-entities">-</dd></div>
+            <div><dt>圖層</dt><dd id="meta-layers">-</dd></div>
+          </dl>
+          <div class="status-box" id="status-box">
+            <strong>等待檔案</strong>
+            <span>請上傳 DWG 或 DXF 檔案開始預覽。</span>
+          </div>
+        </div>
+
+        <div class="card layer-card">
+          <div class="card-title">③ 圖層</div>
+          <div class="layer-list" id="layer-list">
+            <div class="empty-line">尚無圖層資料</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card preview-card">
+        <div class="preview-header">
+          <div>
+            <div class="card-title">預覽畫布</div>
+            <p id="preview-subtitle">載入可解析的 CAD 文字資料後會自動置中顯示</p>
+          </div>
+          <div class="preview-actions">
+            <button type="button" class="btn btn-ghost" id="fit-btn" disabled>置中</button>
+            <button type="button" class="btn btn-ghost" id="download-btn" disabled>下載 PNG</button>
+          </div>
+        </div>
+
+        <div class="canvas-wrap">
+          <canvas id="preview-canvas" width="1100" height="720" aria-label="DWG/DXF 預覽畫布"></canvas>
+          <div class="canvas-empty" id="canvas-empty">
+            <div class="empty-mark">DWG</div>
+            <p>等待上傳檔案</p>
+          </div>
+        </div>
+
+        <div class="canvas-controls">
+          <label for="zoom-range">縮放</label>
+          <input type="range" id="zoom-range" min="25" max="400" step="5" value="100" disabled />
+          <span id="zoom-label">100%</span>
+          <span class="control-hint">滑鼠滾輪也可縮放</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools &mdash; Built with ❤️
+  </footer>
+
+  <script>
+    const state = {
+      fileName: '',
+      fileSize: 0,
+      format: '',
+      entities: [],
+      layers: new Map(),
+      bbox: null,
+      zoom: 1,
+      fitScale: 1,
+      offsetX: 0,
+      offsetY: 0,
+      hiddenLayers: new Set(),
+    };
+
+    const fileInput = document.getElementById('file-input');
+    const dropZone = document.getElementById('drop-zone');
+    const sampleBtn = document.getElementById('sample-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const fitBtn = document.getElementById('fit-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const zoomRange = document.getElementById('zoom-range');
+    const zoomLabel = document.getElementById('zoom-label');
+    const layerList = document.getElementById('layer-list');
+    const statusBox = document.getElementById('status-box');
+    const canvasEmpty = document.getElementById('canvas-empty');
+    const previewSubtitle = document.getElementById('preview-subtitle');
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const meta = {
+      name: document.getElementById('meta-name'),
+      format: document.getElementById('meta-format'),
+      size: document.getElementById('meta-size'),
+      entities: document.getElementById('meta-entities'),
+      layers: document.getElementById('meta-layers'),
+    };
+
+    const sampleDxf = `0
+SECTION
+2
+ENTITIES
+0
+LINE
+8
+WALL
+10
+0
+20
+0
+11
+140
+21
+0
+0
+LINE
+8
+WALL
+10
+140
+20
+0
+11
+140
+21
+80
+0
+LINE
+8
+WALL
+10
+140
+20
+80
+11
+0
+21
+80
+0
+LINE
+8
+WALL
+10
+0
+20
+80
+11
+0
+21
+0
+0
+LINE
+8
+OPENING
+10
+55
+20
+0
+11
+85
+21
+0
+0
+CIRCLE
+8
+COLUMN
+10
+32
+20
+42
+40
+9
+0
+CIRCLE
+8
+COLUMN
+10
+108
+20
+42
+40
+9
+0
+ARC
+8
+DOOR
+10
+55
+20
+0
+40
+24
+50
+0
+51
+90
+0
+LWPOLYLINE
+8
+FURNITURE
+70
+1
+10
+48
+20
+50
+10
+92
+20
+50
+10
+92
+20
+68
+10
+48
+20
+68
+0
+TEXT
+8
+NOTE
+10
+8
+20
+93
+40
+5
+1
+Sample DXF preview
+0
+ENDSEC
+0
+EOF`;
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) readFile(fileInput.files[0]);
+    });
+
+    ['dragenter', 'dragover'].forEach(type => {
+      dropZone.addEventListener(type, event => {
+        event.preventDefault();
+        dropZone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(type => {
+      dropZone.addEventListener(type, event => {
+        event.preventDefault();
+        dropZone.classList.remove('dragover');
+      });
+    });
+
+    dropZone.addEventListener('drop', event => {
+      const file = event.dataTransfer.files[0];
+      if (file) readFile(file);
+    });
+
+    sampleBtn.addEventListener('click', () => {
+      loadText(sampleDxf, 'sample-floor-plan.dxf', sampleDxf.length, 'ASCII DXF');
+    });
+
+    resetBtn.addEventListener('click', resetAll);
+    fitBtn.addEventListener('click', fitToCanvas);
+    downloadBtn.addEventListener('click', downloadPng);
+
+    zoomRange.addEventListener('input', () => {
+      state.zoom = Number(zoomRange.value) / 100;
+      zoomLabel.textContent = `${zoomRange.value}%`;
+      draw();
+    });
+
+    canvas.addEventListener('wheel', event => {
+      if (!state.entities.length) return;
+      event.preventDefault();
+      const next = Math.min(4, Math.max(0.25, state.zoom + (event.deltaY < 0 ? 0.1 : -0.1)));
+      state.zoom = next;
+      zoomRange.value = Math.round(next * 100);
+      zoomLabel.textContent = `${zoomRange.value}%`;
+      draw();
+    }, { passive: false });
+
+    function readFile(file) {
+      const reader = new FileReader();
+      reader.onload = event => {
+        const buffer = event.target.result;
+        const bytes = new Uint8Array(buffer);
+        const header = decodeAscii(bytes.slice(0, 32)).replace(/\0/g, '').trim();
+        const name = file.name || 'drawing';
+        const ext = name.split('.').pop().toLowerCase();
+
+        if (header.startsWith('AC10') && ext === 'dwg') {
+          loadBinaryDwg(name, file.size, header);
+          return;
+        }
+
+        const text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+        if (looksLikeDxf(text)) {
+          loadText(text, name, file.size, ext === 'dwg' ? 'DWG ASCII / DXF-like' : 'ASCII DXF');
+          return;
+        }
+
+        loadUnsupported(name, file.size, header || ext.toUpperCase());
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function loadText(text, name, size, format) {
+      resetState();
+      state.fileName = name;
+      state.fileSize = size;
+      state.format = format;
+      state.entities = parseDxf(text);
+      state.layers = buildLayerMap(state.entities);
+      state.bbox = measureEntities(state.entities);
+      updateMeta();
+      updateLayers();
+
+      if (!state.entities.length || !state.bbox) {
+        setStatus('warning', '未找到可預覽幾何', '目前只解析 ENTITIES 區段中的 LINE、CIRCLE、ARC、LWPOLYLINE、POLYLINE、POINT、TEXT。');
+        canvasEmpty.classList.remove('hidden');
+        previewSubtitle.textContent = '檔案已讀取，但沒有可渲染的簡易幾何';
+        drawEmptyGrid();
+        return;
+      }
+
+      setStatus('success', '已完成預覽解析', '幾何資料已在瀏覽器本地解析，沒有上傳任何檔案。');
+      canvasEmpty.classList.add('hidden');
+      previewSubtitle.textContent = '可使用縮放滑桿或滑鼠滾輪檢視細節';
+      enableControls(true);
+      fitToCanvas();
+    }
+
+    function loadBinaryDwg(name, size, header) {
+      resetState();
+      state.fileName = name;
+      state.fileSize = size;
+      state.format = `Binary DWG ${header}`;
+      updateMeta();
+      updateLayers();
+      drawEmptyGrid();
+      canvasEmpty.classList.remove('hidden');
+      canvasEmpty.querySelector('.empty-mark').textContent = header;
+      canvasEmpty.querySelector('p').textContent = '已辨識為二進位 DWG';
+      previewSubtitle.textContent = '純靜態前端無法完整解碼二進位 DWG 幾何';
+      setStatus('warning', '已辨識 DWG，但無法直接渲染', 'DWG 是二進位 CAD 格式；此工具可顯示版本與檔案資訊。若要看到幾何，請先匯出為 ASCII DXF 再上傳。');
+      enableControls(false);
+      resetBtn.disabled = false;
+    }
+
+    function loadUnsupported(name, size, format) {
+      resetState();
+      state.fileName = name;
+      state.fileSize = size;
+      state.format = format || 'Unknown';
+      updateMeta();
+      updateLayers();
+      drawEmptyGrid();
+      setStatus('error', '無法辨識檔案內容', '請確認檔案是 ASCII DXF，或將 DWG 轉成 DXF 後再預覽。');
+      resetBtn.disabled = false;
+    }
+
+    function looksLikeDxf(text) {
+      return /(^|\n)\s*SECTION\s*(\n|\r\n)\s*2\s*(\n|\r\n)\s*ENTITIES/i.test(text) || /(^|\n)\s*0\s*(\n|\r\n)\s*(LINE|CIRCLE|LWPOLYLINE|POLYLINE)/i.test(text);
+    }
+
+    function parseDxf(text) {
+      const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+      const pairs = [];
+      for (let i = 0; i < lines.length - 1; i += 2) {
+        pairs.push({ code: lines[i].trim(), value: lines[i + 1].trim() });
+      }
+
+      const entities = [];
+      let inEntities = false;
+      let i = 0;
+
+      while (i < pairs.length) {
+        const pair = pairs[i];
+        if (pair.code === '0' && pair.value === 'SECTION' && pairs[i + 1]?.code === '2' && pairs[i + 1]?.value === 'ENTITIES') {
+          inEntities = true;
+          i += 2;
+          continue;
+        }
+        if (inEntities && pair.code === '0' && pair.value === 'ENDSEC') break;
+        if (!inEntities && pair.code !== '0') {
+          i++;
+          continue;
+        }
+
+        if (pair.code === '0') {
+          const type = pair.value;
+          const start = ++i;
+          while (i < pairs.length && pairs[i].code !== '0') i++;
+          const data = pairs.slice(start, i);
+          const entity = parseEntity(type, data, entities);
+          if (entity) entities.push(entity);
+        } else {
+          i++;
+        }
+      }
+
+      return entities;
+    }
+
+    function parseEntity(type, data) {
+      const layer = valueOf(data, '8') || '0';
+      if (type === 'LINE') {
+        return {
+          type, layer,
+          x1: numberOf(data, '10'), y1: numberOf(data, '20'),
+          x2: numberOf(data, '11'), y2: numberOf(data, '21'),
+        };
+      }
+      if (type === 'CIRCLE') {
+        return { type, layer, x: numberOf(data, '10'), y: numberOf(data, '20'), r: numberOf(data, '40') };
+      }
+      if (type === 'ARC') {
+        return {
+          type, layer,
+          x: numberOf(data, '10'), y: numberOf(data, '20'), r: numberOf(data, '40'),
+          start: numberOf(data, '50'), end: numberOf(data, '51'),
+        };
+      }
+      if (type === 'LWPOLYLINE') {
+        return {
+          type, layer,
+          points: pairedPoints(data),
+          closed: (numberOf(data, '70') & 1) === 1,
+        };
+      }
+      if (type === 'POLYLINE') {
+        return null;
+      }
+      if (type === 'VERTEX') {
+        return { type: 'POINT', layer, x: numberOf(data, '10'), y: numberOf(data, '20') };
+      }
+      if (type === 'POINT') {
+        return { type, layer, x: numberOf(data, '10'), y: numberOf(data, '20') };
+      }
+      if (type === 'TEXT' || type === 'MTEXT') {
+        return {
+          type, layer,
+          x: numberOf(data, '10'), y: numberOf(data, '20'),
+          size: numberOf(data, '40') || 4,
+          text: valueOf(data, '1') || valueOf(data, '3') || '',
+        };
+      }
+      return null;
+    }
+
+    function pairedPoints(data) {
+      const points = [];
+      let pendingX = null;
+      data.forEach(pair => {
+        if (pair.code === '10') pendingX = Number(pair.value);
+        if (pair.code === '20' && pendingX !== null) {
+          points.push({ x: pendingX, y: Number(pair.value) });
+          pendingX = null;
+        }
+      });
+      return points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+    }
+
+    function valueOf(data, code) {
+      return data.find(pair => pair.code === code)?.value;
+    }
+
+    function numberOf(data, code) {
+      const value = Number(valueOf(data, code));
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    function buildLayerMap(entities) {
+      const map = new Map();
+      entities.forEach(entity => {
+        map.set(entity.layer, (map.get(entity.layer) || 0) + 1);
+      });
+      return map;
+    }
+
+    function measureEntities(entities) {
+      const points = [];
+      entities.forEach(entity => {
+        if (entity.type === 'LINE') {
+          points.push({ x: entity.x1, y: entity.y1 }, { x: entity.x2, y: entity.y2 });
+        } else if (entity.type === 'CIRCLE') {
+          points.push({ x: entity.x - entity.r, y: entity.y - entity.r }, { x: entity.x + entity.r, y: entity.y + entity.r });
+        } else if (entity.type === 'ARC') {
+          for (let angle = entity.start; angle <= entity.end + 1; angle += 8) {
+            points.push(pointOnArc(entity, angle));
+          }
+          points.push(pointOnArc(entity, entity.start), pointOnArc(entity, entity.end));
+        } else if (entity.type === 'LWPOLYLINE') {
+          points.push(...entity.points);
+        } else if (entity.type === 'POINT' || entity.type === 'TEXT' || entity.type === 'MTEXT') {
+          points.push({ x: entity.x, y: entity.y });
+        }
+      });
+      const valid = points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y));
+      if (!valid.length) return null;
+      return valid.reduce((box, point) => ({
+        minX: Math.min(box.minX, point.x),
+        minY: Math.min(box.minY, point.y),
+        maxX: Math.max(box.maxX, point.x),
+        maxY: Math.max(box.maxY, point.y),
+      }), { minX: valid[0].x, minY: valid[0].y, maxX: valid[0].x, maxY: valid[0].y });
+    }
+
+    function pointOnArc(entity, angleDeg) {
+      const angle = angleDeg * Math.PI / 180;
+      return { x: entity.x + Math.cos(angle) * entity.r, y: entity.y + Math.sin(angle) * entity.r };
+    }
+
+    function fitToCanvas() {
+      if (!state.bbox) return;
+      const width = Math.max(1, state.bbox.maxX - state.bbox.minX);
+      const height = Math.max(1, state.bbox.maxY - state.bbox.minY);
+      state.fitScale = Math.min((canvas.width - 96) / width, (canvas.height - 96) / height);
+      state.zoom = 1;
+      zoomRange.value = 100;
+      zoomLabel.textContent = '100%';
+      state.offsetX = canvas.width / 2 - (state.bbox.minX + width / 2) * state.fitScale;
+      state.offsetY = canvas.height / 2 + (state.bbox.minY + height / 2) * state.fitScale;
+      draw();
+    }
+
+    function worldToCanvas(x, y) {
+      const scale = state.fitScale * state.zoom;
+      return {
+        x: x * scale + state.offsetX,
+        y: -y * scale + state.offsetY,
+      };
+    }
+
+    function draw() {
+      drawEmptyGrid();
+      if (!state.entities.length) return;
+      const scale = state.fitScale * state.zoom;
+      ctx.save();
+      ctx.lineWidth = Math.max(1.2, 1.8 / state.zoom);
+      state.entities.forEach(entity => {
+        if (state.hiddenLayers.has(entity.layer)) return;
+        ctx.strokeStyle = layerColor(entity.layer);
+        ctx.fillStyle = layerColor(entity.layer);
+        ctx.beginPath();
+
+        if (entity.type === 'LINE') {
+          const a = worldToCanvas(entity.x1, entity.y1);
+          const b = worldToCanvas(entity.x2, entity.y2);
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        } else if (entity.type === 'CIRCLE') {
+          const c = worldToCanvas(entity.x, entity.y);
+          ctx.arc(c.x, c.y, Math.abs(entity.r * scale), 0, Math.PI * 2);
+          ctx.stroke();
+        } else if (entity.type === 'ARC') {
+          drawArc(entity, scale);
+        } else if (entity.type === 'LWPOLYLINE') {
+          drawPolyline(entity);
+        } else if (entity.type === 'POINT') {
+          drawPoint(entity);
+        } else if (entity.type === 'TEXT' || entity.type === 'MTEXT') {
+          drawText(entity, scale);
+        }
+      });
+      ctx.restore();
+    }
+
+    function drawArc(entity, scale) {
+      const c = worldToCanvas(entity.x, entity.y);
+      const start = -entity.start * Math.PI / 180;
+      const end = -entity.end * Math.PI / 180;
+      ctx.arc(c.x, c.y, Math.abs(entity.r * scale), start, end, true);
+      ctx.stroke();
+    }
+
+    function drawPolyline(entity) {
+      if (!entity.points.length) return;
+      entity.points.forEach((point, index) => {
+        const p = worldToCanvas(point.x, point.y);
+        if (index === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      if (entity.closed) ctx.closePath();
+      ctx.stroke();
+    }
+
+    function drawPoint(entity) {
+      const p = worldToCanvas(entity.x, entity.y);
+      ctx.moveTo(p.x - 5, p.y);
+      ctx.lineTo(p.x + 5, p.y);
+      ctx.moveTo(p.x, p.y - 5);
+      ctx.lineTo(p.x, p.y + 5);
+      ctx.stroke();
+    }
+
+    function drawText(entity, scale) {
+      const p = worldToCanvas(entity.x, entity.y);
+      ctx.save();
+      ctx.font = `${Math.max(10, entity.size * scale)}px Consolas, monospace`;
+      ctx.fillText(entity.text, p.x, p.y);
+      ctx.restore();
+    }
+
+    function drawEmptyGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#101726';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = 'rgba(108, 99, 255, 0.08)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= canvas.width; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, canvas.height);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= canvas.height; y += 40) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+    }
+
+    function layerColor(layer) {
+      const palette = ['#8b83ff', '#22c55e', '#f97316', '#38bdf8', '#facc15', '#f472b6', '#c084fc', '#2dd4bf'];
+      let hash = 0;
+      for (let i = 0; i < layer.length; i++) hash = ((hash << 5) - hash) + layer.charCodeAt(i);
+      return palette[Math.abs(hash) % palette.length];
+    }
+
+    function updateMeta() {
+      meta.name.textContent = state.fileName || '尚未載入';
+      meta.format.textContent = state.format || '-';
+      meta.size.textContent = state.fileSize ? formatBytes(state.fileSize) : '-';
+      meta.entities.textContent = state.entities.length ? `${state.entities.length} 個` : '-';
+      meta.layers.textContent = state.layers.size ? `${state.layers.size} 個` : '-';
+    }
+
+    function updateLayers() {
+      if (!state.layers.size) {
+        layerList.innerHTML = '<div class="empty-line">尚無圖層資料</div>';
+        return;
+      }
+      layerList.innerHTML = '';
+      [...state.layers.entries()].sort((a, b) => a[0].localeCompare(b[0])).forEach(([layer, count]) => {
+        const row = document.createElement('label');
+        row.className = 'layer-row';
+        row.innerHTML = `
+          <input type="checkbox" checked />
+          <span class="layer-swatch" style="background:${layerColor(layer)}"></span>
+          <span class="layer-name">${escapeHtml(layer)}</span>
+          <span class="layer-count">${count}</span>
+        `;
+        row.querySelector('input').addEventListener('change', event => {
+          if (event.target.checked) state.hiddenLayers.delete(layer);
+          else state.hiddenLayers.add(layer);
+          draw();
+        });
+        layerList.appendChild(row);
+      });
+    }
+
+    function setStatus(type, title, text) {
+      statusBox.className = `status-box ${type}`;
+      statusBox.innerHTML = `<strong>${escapeHtml(title)}</strong><span>${escapeHtml(text)}</span>`;
+    }
+
+    function enableControls(enabled) {
+      fitBtn.disabled = !enabled;
+      downloadBtn.disabled = !enabled;
+      zoomRange.disabled = !enabled;
+      resetBtn.disabled = false;
+    }
+
+    function resetAll() {
+      fileInput.value = '';
+      resetState();
+      updateMeta();
+      updateLayers();
+      enableControls(false);
+      resetBtn.disabled = true;
+      canvasEmpty.classList.remove('hidden');
+      canvasEmpty.querySelector('.empty-mark').textContent = 'DWG';
+      canvasEmpty.querySelector('p').textContent = '等待上傳檔案';
+      previewSubtitle.textContent = '載入可解析的 CAD 文字資料後會自動置中顯示';
+      setStatus('', '等待檔案', '請上傳 DWG 或 DXF 檔案開始預覽。');
+      zoomRange.value = 100;
+      zoomLabel.textContent = '100%';
+      drawEmptyGrid();
+    }
+
+    function resetState() {
+      state.fileName = '';
+      state.fileSize = 0;
+      state.format = '';
+      state.entities = [];
+      state.layers = new Map();
+      state.bbox = null;
+      state.zoom = 1;
+      state.fitScale = 1;
+      state.offsetX = 0;
+      state.offsetY = 0;
+      state.hiddenLayers = new Set();
+    }
+
+    function downloadPng() {
+      const link = document.createElement('a');
+      const base = (state.fileName || 'dwg-preview').replace(/\.[^.]+$/, '');
+      link.download = `${base}_preview.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function decodeAscii(bytes) {
+      return [...bytes].map(byte => byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '\0').join('');
+    }
+
+    function formatBytes(bytes) {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    function escapeHtml(text) {
+      return String(text).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;',
+      }[char]));
+    }
+
+    drawEmptyGrid();
+  </script>
+</body>
+</html>

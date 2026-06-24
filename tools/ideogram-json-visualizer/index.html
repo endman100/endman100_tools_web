@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ideogram 4 JSON 視覺化工具 — Endman100 Tools</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="../../index.html" class="navbar-brand">
+        <span class="brand-icon">IT</span>
+        Endman100 Tools
+      </a>
+      <div class="navbar-links">
+        <a href="../../index.html">首頁</a>
+        <a href="./" class="active">Ideogram JSON</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="tool-page">
+    <a href="../../index.html" class="back-link">← 返回工具列表</a>
+
+    <div class="tool-page-header">
+      <div class="icon">BBOX</div>
+      <div>
+        <h1>Ideogram 4 JSON 視覺化工具</h1>
+        <p>貼上 structured caption，將 0-1000 bbox 對照到圖片上。</p>
+      </div>
+    </div>
+
+    <section class="workspace">
+      <div class="left-scroll">
+        <section class="input-strip">
+          <aside class="input-panel upload-panel">
+            <div class="panel-header">
+              <span class="panel-kicker">Image</span>
+              <span class="hint-text">PNG, JPG, WebP</span>
+            </div>
+
+            <label class="upload-area" id="dropZone" for="imageInput">
+              <input type="file" id="imageInput" accept="image/*" />
+              <span class="upload-mark">IMG</span>
+              <strong>Image upload</strong>
+              <span id="imageMeta">PNG, JPG, WebP</span>
+            </label>
+          </aside>
+
+          <aside class="input-panel json-panel">
+            <div class="panel-header">
+              <label class="panel-kicker" for="jsonInput">Ideogram 4 JSON</label>
+              <button type="button" class="btn btn-ghost" id="sampleBtn">載入範例</button>
+            </div>
+
+            <textarea id="jsonInput" spellcheck="false" placeholder='{"high_level_description":"...","compositional_deconstruction":{"background":"...","elements":[{"type":"obj","bbox":[100,200,400,800],"desc":"..."}]}}'></textarea>
+
+            <div class="action-row">
+              <button type="button" class="btn btn-primary" id="renderBtn">Render boxes</button>
+              <button type="button" class="btn btn-ghost" id="clearBtn">Clear</button>
+              <button type="button" class="btn btn-ghost" id="downloadBtn" disabled>Download PNG</button>
+              <button type="button" class="btn btn-ghost" id="downloadJsonBtn" disabled>Download JSON</button>
+              <div id="statusLine" class="status-line">等待圖片與 JSON</div>
+            </div>
+          </aside>
+        </section>
+
+        <aside class="inspector-panel">
+        <div class="summary-grid">
+          <div>
+            <span>Elements</span>
+            <strong id="elementCount">0</strong>
+          </div>
+          <div>
+            <span>Text</span>
+            <strong id="textCount">0</strong>
+          </div>
+          <div>
+            <span>Image</span>
+            <strong id="imageSize">--</strong>
+          </div>
+        </div>
+
+        <section class="document-section">
+          <div class="section-title">Document</div>
+          <div class="field-stack">
+            <label>
+              <span>high_level_description</span>
+              <textarea id="highLevelInput" class="compact-textarea" spellcheck="false" disabled></textarea>
+            </label>
+            <label>
+              <span>style_description</span>
+              <textarea id="styleDescriptionInput" class="compact-textarea" spellcheck="false" disabled></textarea>
+            </label>
+            <label>
+              <span>background</span>
+              <textarea id="backgroundInput" class="compact-textarea" spellcheck="false" disabled></textarea>
+            </label>
+          </div>
+        </section>
+
+        <section class="selected-section">
+          <div class="section-title-row">
+            <div class="section-title">Selected box</div>
+          </div>
+          <div class="field-stack">
+            <label>
+              <span>desc</span>
+              <textarea id="selectedDescInput" class="compact-textarea" spellcheck="false" disabled></textarea>
+            </label>
+            <label id="selectedTextField" class="is-hidden">
+              <span>text</span>
+              <input type="text" id="selectedTextInput" disabled />
+            </label>
+            <div class="selected-palette-field">
+              <div id="selectedPaletteEditor" class="palette-holder is-disabled">
+                <span class="muted">No palette</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="palette-section">
+          <div class="section-title-row">
+            <div class="section-title">Color panel</div>
+            <button type="button" class="btn btn-ghost btn-small" id="addPaletteBtn" disabled>Add color panel</button>
+          </div>
+          <div id="paletteList" class="palette-list">
+            <span class="muted">No palette</span>
+          </div>
+        </section>
+
+        <section class="element-section">
+          <div class="section-title">Boxes</div>
+          <div id="elementList" class="element-list">
+            <div class="empty-list">No parsed elements</div>
+          </div>
+          <button type="button" class="btn btn-primary add-box-wide" id="addBoxBtn" disabled>Add box</button>
+        </section>
+        </aside>
+      </div>
+
+      <section class="preview-panel">
+        <div class="stage-toolbar">
+          <div class="stage-title">
+            <span class="panel-kicker">Canvas editor</span>
+            <strong id="canvasTitle">No image loaded</strong>
+          </div>
+          <div class="stage-controls">
+            <div class="comfy-controls toolbar-comfy-controls">
+              <label class="panel-kicker" for="comfyUrlInput">ComfyUI</label>
+              <input type="text" id="comfyUrlInput" value="http://10.213.183.11:8188/" placeholder="http://10.213.183.11:8188/" />
+              <button type="button" class="btn btn-ghost" id="comfyTestBtn">Test</button>
+              <button type="button" class="btn btn-primary" id="comfyGenerateBtn">Generate</button>
+              <div id="comfyStatusLine" class="status-line compact-status">等待 ComfyUI URL</div>
+            </div>
+            <div class="view-toggle-row">
+              <button type="button" class="btn btn-ghost btn-small is-active" id="viewOriginalBtn">Original</button>
+              <button type="button" class="btn btn-ghost btn-small" id="viewResultBtn" disabled>Result</button>
+            </div>
+            <div class="toggle-row">
+              <label><input type="checkbox" id="fillToggle" checked /> Fill</label>
+              <label><input type="checkbox" id="labelToggle" checked /> Labels</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="canvas-shell">
+          <canvas id="previewCanvas"></canvas>
+          <div class="empty-state" id="emptyState">
+            <div class="empty-mark">1000</div>
+            <p>Image + Ideogram JSON</p>
+          </div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    &copy; 2026 Endman100 Tools
+  </footer>
+
+  <script type="application/json" id="embeddedComfyWorkflow">
+{
+  "37": {
+    "inputs": {
+      "aspect_ratio": "9:16 (Portrait Widescreen)",
+      "megapixels": 2
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "解析度選擇器"
+    }
+  },
+  "158": {
+    "inputs": {
+      "vae_name": "vae/flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "載入 VAE"
+    }
+  },
+  "160": {
+    "inputs": {
+      "width": [
+        "171",
+        1
+      ],
+      "height": [
+        "172",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "空白 Flux 轉 Latent"
+    }
+  },
+  "161": {
+    "inputs": {
+      "noise": [
+        "165",
+        0
+      ],
+      "guider": [
+        "182",
+        0
+      ],
+      "sampler": [
+        "191",
+        0
+      ],
+      "sigmas": [
+        "164",
+        0
+      ],
+      "latent_image": [
+        "160",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "162": {
+    "inputs": {
+      "samples": [
+        "161",
+        0
+      ],
+      "vae": [
+        "158",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE 解碼"
+    }
+  },
+  "164": {
+    "inputs": {
+      "steps": [
+        "180",
+        1
+      ],
+      "width": [
+        "171",
+        1
+      ],
+      "height": [
+        "172",
+        1
+      ],
+      "mu": [
+        "173",
+        0
+      ],
+      "std": [
+        "175",
+        0
+      ]
+    },
+    "class_type": "Ideogram4Scheduler",
+    "_meta": {
+      "title": "Ideogram 4 Scheduler"
+    }
+  },
+  "165": {
+    "inputs": {
+      "noise_seed": 1018012079839750
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "隨機雜訊"
+    }
+  },
+  "166": {
+    "inputs": {
+      "unet_name": "diffusion_models/ideogram4_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "載入擴散模型"
+    }
+  },
+  "167": {
+    "inputs": {
+      "text": "\n  \"high_level_description\": \"A tall vertical anime-style illustration of a cheerful angelic character seated close to the viewer inside a luminous chapel-like interior, with a glowing halo, small feathered wings, pink twin-tail hair with turquoise tips, purple eyes, and a white sailor-inspired outfit. The composition uses an exaggerated low-angle perspective with the head and upper body near the top center and one bent knee large in the foreground.\",\n  \"style_description\": \n    \"aesthetics\": \"soft, cute, angelic, luminous, clean, polished, gentle smile, pastel fantasy atmosphere\",\n    \"lighting\": \"bright diffused backlight from stained glass windows, warm rim light around the halo and hair, soft bloom, gentle shadows on the clothing and skin\",\n    \"medium\": \"digital anime illustration\",\n    \"art_style\": \"high-resolution contemporary Japanese anime key visual, crisp line art, glossy hair highlights, soft cel shading, delicate blush, detailed eyes, pastel color grading, smartphone wallpaper composition\",\n    \"color_palette\": [\"#F7D7E6\", \"#F6B7CE\", \"#7ADDE4\", \"#5C8DBB\", \"#8E4CD9\", \"#FFFFFF\", \"#F8E6B1\", \"#B99E8B\"]\n  ,\n  \"compositional_deconstruction\": \n    \"background\": \"A softly blurred chapel or cathedral interior filled with warm white light. Large circular stained-glass window near the top, floral stained-glass shapes in pastel purple, blue, pink, and yellow. Ornamental wrought-iron scrollwork and tall vertical window frames create an elegant sacred atmosphere. Background is intentionally out of focus with strong bloom and creamy highlights.\",\n    \"elements\": [\n      \n        \"type\": \"obj\",\n        \"bbox\": [55, 60, 210, 725],\n        \"desc\": \"Large glowing golden halo floating behind and slightly above the character's head, tilted as an oval ring, soft warm bloom and pale yellow rim light.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [115, 135, 500, 765],\n        \"desc\": \"Main character's head and hair, centered slightly left, tilted forward toward the viewer. Pink bobbed bangs with glossy white highlights, twin-tail hairstyle, black ribbon bows on both sides, turquoise-blue gradient tips at the ends of the hair.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [245, 250, 455, 650],\n        \"desc\": \"Cute smiling anime face with large sparkling purple eyes, small nose, soft blush marks on both cheeks, relaxed mischievous smile, clean delicate linework.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [265, 40, 545, 265],\n        \"desc\": \"Left-side twin-tail hair bundle curling outward, pink at the top fading into vivid turquoise blue at the curled tips, tied with a small dark ribbon bow.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [205, 680, 465, 960],\n        \"desc\": \"Right-side twin-tail hair bundle curling outward, pink at the top fading into vivid turquoise blue at the lower curl, tied with a dark ribbon bow.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [420, 0, 690, 220],\n        \"desc\": \"Left feathered angel wing partly visible behind the character, soft white and pale pink feathers, cropped by the left edge of the frame.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [405, 890, 590, 1000],\n        \"desc\": \"Right feathered angel wing partly visible behind the shoulder, white feathers with soft grey shadows, cropped by the right edge.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [445, 190, 770, 850],\n        \"desc\": \"White sailor-inspired blouse with blue collar stripes and blue trim, loose sleeves, small gold floral emblem near the chest, teal bow or ribbon detail at the front. Fabric has crisp anime folds and cool grey shadows.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [555, 230, 705, 910],\n        \"desc\": \"Arms crossed loosely over a raised knee, hands relaxed and gently posed, soft skin shading, clean outlines, one hand resting near the center and the other near the right side.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [685, 250, 1000, 760],\n        \"desc\": \"White and light-grey pleated sailor-style skirt or shorts with blue trim, gold belt buttons at the waist, angular cloth folds and soft shaded creases.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [590, 520, 1000, 1000],\n        \"desc\": \"Large bent foreground leg dominating the lower-right half of the image due to low-angle perspective, smooth soft anime shading, warm peach skin tones, cropped at the bottom and right edge.\"\n      ,\n      \n        \"type\": \"obj\",\n        \"bbox\": [865, 765, 1000, 1000],\n        \"desc\": \"White sock edge with frilled trim and a dark band near the lower-right edge, partially cropped by the frame.\"\n      \n    ]\n  \n",
+      "clip": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "168": {
+    "inputs": {
+      "clip_name": "text_encoders/qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "載入 CLIP"
+    }
+  },
+  "169": {
+    "inputs": {
+      "value": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int (Width)"
+    }
+  },
+  "170": {
+    "inputs": {
+      "value": [
+        "37",
+        1
+      ]
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Int (Height)"
+    }
+  },
+  "171": {
+    "inputs": {
+      "expression": "max(((a + 15) // 16) * 16, 256)",
+      "values.a": [
+        "169",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "數學運算式"
+    }
+  },
+  "172": {
+    "inputs": {
+      "expression": "max(((a + 15) // 16) * 16, 256)",
+      "values.a": [
+        "170",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "數學運算式"
+    }
+  },
+  "173": {
+    "inputs": {
+      "value": [
+        "174",
+        0
+      ]
+    },
+    "class_type": "ComfyNumberConvert",
+    "_meta": {
+      "title": "數值轉換"
+    }
+  },
+  "174": {
+    "inputs": {
+      "json_string": [
+        "177",
+        0
+      ],
+      "key": "mu"
+    },
+    "class_type": "JsonExtractString",
+    "_meta": {
+      "title": "從 JSON 擷取字串"
+    }
+  },
+  "175": {
+    "inputs": {
+      "value": [
+        "179",
+        0
+      ]
+    },
+    "class_type": "ComfyNumberConvert",
+    "_meta": {
+      "title": "數值轉換"
+    }
+  },
+  "176": {
+    "inputs": {
+      "json_string": "{\n  \"Quality\": {\n    \"num_steps\": 48,\n    \"mu\": 0.0,\n    \"std\": 1.5,\n    \"preset_id\": \"V4_QUALITY_48\"\n  },\n  \"Default\": {\n    \"num_steps\": 20,\n    \"mu\": 0.0,\n    \"std\": 1.75,\n    \"preset_id\": \"V4_DEFAULT_20\"\n  },\n  \"Turbo\": {\n    \"num_steps\": 12,\n    \"mu\": 0.5,\n    \"std\": 1.75,\n    \"preset_id\": \"V4_TURBO_12\"\n  }\n}",
+      "key": "Quality"
+    },
+    "class_type": "JsonExtractString",
+    "_meta": {
+      "title": "從 JSON 擷取字串"
+    }
+  },
+  "177": {
+    "inputs": {
+      "string": [
+        "176",
+        0
+      ],
+      "find": "'",
+      "replace": "\""
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "取代"
+    }
+  },
+  "178": {
+    "inputs": {
+      "json_string": [
+        "177",
+        0
+      ],
+      "key": "num_steps"
+    },
+    "class_type": "JsonExtractString",
+    "_meta": {
+      "title": "從 JSON 擷取字串"
+    }
+  },
+  "179": {
+    "inputs": {
+      "json_string": [
+        "177",
+        0
+      ],
+      "key": "std"
+    },
+    "class_type": "JsonExtractString",
+    "_meta": {
+      "title": "從 JSON 擷取字串"
+    }
+  },
+  "180": {
+    "inputs": {
+      "value": [
+        "178",
+        0
+      ]
+    },
+    "class_type": "ComfyNumberConvert",
+    "_meta": {
+      "title": "數值轉換"
+    }
+  },
+  "181": {
+    "inputs": {
+      "unet_name": "diffusion_models/ideogram4_unconditional_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "載入擴散模型"
+    }
+  },
+  "182": {
+    "inputs": {
+      "cfg": 4,
+      "model": [
+        "184",
+        0
+      ],
+      "positive": [
+        "167",
+        0
+      ],
+      "model_negative": [
+        "181",
+        0
+      ],
+      "negative": [
+        "194",
+        0
+      ]
+    },
+    "class_type": "DualModelGuider",
+    "_meta": {
+      "title": "Dual Model CFG Guider"
+    }
+  },
+  "184": {
+    "inputs": {
+      "cfg": 3,
+      "start_percent": 0.9,
+      "end_percent": 1,
+      "model": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "CFGOverride",
+    "_meta": {
+      "title": "CFG Override"
+    }
+  },
+  "190": {
+    "inputs": {
+      "source": [
+        "180",
+        1
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "預覽任意"
+    }
+  },
+  "191": {
+    "inputs": {
+      "eta": 0,
+      "s_noise": 1
+    },
+    "class_type": "SamplerEulerAncestral",
+    "_meta": {
+      "title": "SamplerEulerAncestral"
+    }
+  },
+  "194": {
+    "inputs": {
+      "text": "worst quality",
+      "clip": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP 文字編碼（提示詞）"
+    }
+  },
+  "195": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "儲存圖片"
+    }
+  }
+}
+  </script>
+
+  <script>
+    const DEFAULT_COMFY_URL = "http://10.213.183.11:8188/";
+
+
+    const sampleJson = {
+  "high_level_description": "A tall vertical anime-style illustration of a cheerful angelic character seated close to the viewer inside a luminous chapel-like interior, with a glowing halo, small feathered wings, pink twin-tail hair with turquoise tips, purple eyes, and a white sailor-inspired outfit. The composition uses an exaggerated low-angle perspective with the head and upper body near the top center and one bent knee large in the foreground.",
+  "style_description": {
+    "aesthetics": "soft, cute, angelic, luminous, clean, polished, gentle smile, pastel fantasy atmosphere",
+    "lighting": "bright diffused backlight from stained glass windows, warm rim light around the halo and hair, soft bloom, gentle shadows on the clothing and skin",
+    "medium": "digital anime illustration",
+    "art_style": "high-resolution contemporary Japanese anime key visual, crisp line art, glossy hair highlights, soft cel shading, delicate blush, detailed eyes, pastel color grading, smartphone wallpaper composition",
+    "color_palette": [
+      "#F7D7E6",
+      "#F6B7CE",
+      "#7ADDE4",
+      "#5C8DBB",
+      "#8E4CD9",
+      "#FFFFFF",
+      "#F8E6B1",
+      "#B99E8B"
+    ]
+  },
+  "compositional_deconstruction": {
+    "background": "A softly blurred chapel or cathedral interior filled with warm white light. Large circular stained-glass window near the top, floral stained-glass shapes in pastel purple, blue, pink, and yellow. Ornamental wrought-iron scrollwork and tall vertical window frames create an elegant sacred atmosphere. Background is intentionally out of focus with strong bloom and creamy highlights.",
+    "elements": [
+      {
+        "type": "obj",
+        "bbox": [
+          55,
+          60,
+          210,
+          725
+        ],
+        "desc": "Large glowing golden halo floating behind and slightly above the character's head, tilted as an oval ring, soft warm bloom and pale yellow rim light."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          115,
+          135,
+          500,
+          765
+        ],
+        "desc": "Main character's head and hair, centered slightly left, tilted forward toward the viewer. Pink bobbed bangs with glossy white highlights, twin-tail hairstyle, black ribbon bows on both sides, turquoise-blue gradient tips at the ends of the hair."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          245,
+          250,
+          455,
+          650
+        ],
+        "desc": "Cute smiling anime face with large sparkling purple eyes, small nose, soft blush marks on both cheeks, relaxed mischievous smile, clean delicate linework."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          265,
+          40,
+          545,
+          265
+        ],
+        "desc": "Left-side twin-tail hair bundle curling outward, pink at the top fading into vivid turquoise blue at the curled tips, tied with a small dark ribbon bow."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          205,
+          680,
+          465,
+          960
+        ],
+        "desc": "Right-side twin-tail hair bundle curling outward, pink at the top fading into vivid turquoise blue at the lower curl, tied with a dark ribbon bow."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          420,
+          0,
+          690,
+          220
+        ],
+        "desc": "Left feathered angel wing partly visible behind the character, soft white and pale pink feathers, cropped by the left edge of the frame."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          405,
+          890,
+          590,
+          1000
+        ],
+        "desc": "Right feathered angel wing partly visible behind the shoulder, white feathers with soft grey shadows, cropped by the right edge."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          445,
+          190,
+          770,
+          850
+        ],
+        "desc": "White sailor-inspired blouse with blue collar stripes and blue trim, loose sleeves, small gold floral emblem near the chest, teal bow or ribbon detail at the front. Fabric has crisp anime folds and cool grey shadows."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          555,
+          230,
+          705,
+          910
+        ],
+        "desc": "Arms crossed loosely over a raised knee, hands relaxed and gently posed, soft skin shading, clean outlines, one hand resting near the center and the other near the right side."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          685,
+          250,
+          1000,
+          760
+        ],
+        "desc": "White and light-grey pleated sailor-style skirt or shorts with blue trim, gold belt buttons at the waist, angular cloth folds and soft shaded creases."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          590,
+          520,
+          1000,
+          1000
+        ],
+        "desc": "Large bent foreground leg dominating the lower-right half of the image due to low-angle perspective, smooth soft anime shading, warm peach skin tones, cropped at the bottom and right edge."
+      },
+      {
+        "type": "obj",
+        "bbox": [
+          865,
+          765,
+          1000,
+          1000
+        ],
+        "desc": "White sock edge with frilled trim and a dark band near the lower-right edge, partially cropped by the frame."
+      }
+    ]
+  }
+};
+
+
+    const state = {
+      image: null,
+      imageUrl: "",
+      resultImage: null,
+      resultImageUrl: "",
+      resultImageName: "",
+      viewMode: "original",
+      parsed: null,
+      elements: [],
+      hidden: new Set(),
+      palettes: [],
+      selectedId: null,
+      drag: null,
+      displayWidth: 0,
+      displayHeight: 0,
+      paletteMenu: null,
+      isSyncingEditor: false
+    };
+
+    const frameColors = [
+      "#FFD400", "#A66CFF", "#FF4FB3", "#43D9FF", "#FFB000", "#6EFF7D",
+      "#FF8A3D", "#C6FF35", "#3A8DFF", "#FF7AD9", "#FF453A", "#55EFEA"
+    ];
+
+    const canvas = document.getElementById("previewCanvas");
+    const ctx = canvas.getContext("2d");
+    const imageInput = document.getElementById("imageInput");
+    const jsonInput = document.getElementById("jsonInput");
+    const statusLine = document.getElementById("statusLine");
+    const emptyState = document.getElementById("emptyState");
+    const imageMeta = document.getElementById("imageMeta");
+    const canvasTitle = document.getElementById("canvasTitle");
+    const elementList = document.getElementById("elementList");
+    const paletteList = document.getElementById("paletteList");
+    const elementCount = document.getElementById("elementCount");
+    const textCount = document.getElementById("textCount");
+    const imageSize = document.getElementById("imageSize");
+    const fillToggle = document.getElementById("fillToggle");
+    const labelToggle = document.getElementById("labelToggle");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+    const comfyUrlInput = document.getElementById("comfyUrlInput");
+    const comfyTestBtn = document.getElementById("comfyTestBtn");
+    const comfyGenerateBtn = document.getElementById("comfyGenerateBtn");
+    const comfyStatusLine = document.getElementById("comfyStatusLine");
+    const viewOriginalBtn = document.getElementById("viewOriginalBtn");
+    const viewResultBtn = document.getElementById("viewResultBtn");
+    const addBoxBtn = document.getElementById("addBoxBtn");
+    const addPaletteBtn = document.getElementById("addPaletteBtn");
+    const highLevelInput = document.getElementById("highLevelInput");
+    const styleDescriptionInput = document.getElementById("styleDescriptionInput");
+    const backgroundInput = document.getElementById("backgroundInput");
+    const selectedDescInput = document.getElementById("selectedDescInput");
+    const selectedTextField = document.getElementById("selectedTextField");
+    const selectedTextInput = document.getElementById("selectedTextInput");
+    const selectedPaletteEditor = document.getElementById("selectedPaletteEditor");
+    const paletteContextMenu = document.createElement("div");
+    paletteContextMenu.className = "context-menu is-hidden";
+    paletteContextMenu.innerHTML = '<button type="button" data-context-action="remove-color">Remove color</button>';
+    document.body.appendChild(paletteContextMenu);
+
+    imageInput.addEventListener("change", () => {
+      const file = imageInput.files[0];
+      if (file) loadImage(file);
+    });
+
+    ["dragenter", "dragover"].forEach(type => {
+      document.getElementById("dropZone").addEventListener(type, event => {
+        event.preventDefault();
+        event.currentTarget.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(type => {
+      document.getElementById("dropZone").addEventListener(type, event => {
+        event.preventDefault();
+        event.currentTarget.classList.remove("dragover");
+      });
+    });
+
+    document.getElementById("dropZone").addEventListener("drop", event => {
+      const file = event.dataTransfer.files[0];
+      if (file && file.type.startsWith("image/")) loadImage(file);
+    });
+
+    document.getElementById("renderBtn").addEventListener("click", renderFromInputs);
+    document.getElementById("sampleBtn").addEventListener("click", () => {
+      jsonInput.value = JSON.stringify(sampleJson, null, 2);
+      autoResizeTextarea(jsonInput);
+      renderFromInputs();
+    });
+    document.getElementById("clearBtn").addEventListener("click", clearAll);
+    fillToggle.addEventListener("change", drawCanvas);
+    labelToggle.addEventListener("change", drawCanvas);
+    downloadBtn.addEventListener("click", downloadAnnotatedImage);
+    downloadJsonBtn.addEventListener("click", downloadJson);
+    comfyTestBtn.addEventListener("click", testComfyConnection);
+    comfyGenerateBtn.addEventListener("click", generateWithComfy);
+    viewOriginalBtn.addEventListener("click", () => setViewMode("original"));
+    viewResultBtn.addEventListener("click", () => setViewMode("result"));
+    comfyUrlInput.addEventListener("change", () => {
+      localStorage.setItem("ideogramComfyUrl", comfyUrlInput.value.trim());
+    });
+    addBoxBtn.addEventListener("click", addBox);
+    addPaletteBtn.addEventListener("click", addColorPanel);
+    [highLevelInput, styleDescriptionInput, backgroundInput].forEach(input => {
+      input.addEventListener("input", updateDocumentFromEditor);
+      input.addEventListener("change", updateInspector);
+    });
+    [selectedDescInput, selectedTextInput].forEach(input => {
+      input.addEventListener("input", updateSelectedFromEditor);
+      input.addEventListener("change", updateInspector);
+    });
+    document.querySelectorAll("textarea").forEach(textarea => {
+      textarea.addEventListener("input", () => autoResizeTextarea(textarea));
+    });
+    canvas.addEventListener("pointerdown", handleCanvasPointerDown);
+    canvas.addEventListener("pointermove", handleCanvasPointerMove);
+    canvas.addEventListener("pointerup", handleCanvasPointerUp);
+    canvas.addEventListener("pointercancel", handleCanvasPointerUp);
+    document.querySelector(".left-scroll").addEventListener("wheel", () => {
+      if (document.activeElement?.classList?.contains("palette-color-input")) {
+        document.activeElement.blur();
+      }
+      hidePaletteContextMenu();
+    }, { passive: true });
+    document.addEventListener("click", hidePaletteContextMenu);
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape") hidePaletteContextMenu();
+    });
+    paletteContextMenu.addEventListener("click", event => {
+      const button = event.target.closest("[data-context-action='remove-color']");
+      if (!button || !state.paletteMenu) return;
+      event.stopPropagation();
+      removePaletteColor(state.paletteMenu.source, state.paletteMenu.id, state.paletteMenu.index);
+      hidePaletteContextMenu();
+    });
+    window.addEventListener("resize", () => {
+      hidePaletteContextMenu();
+      drawCanvas();
+      autoResizeAllTextareas();
+    });
+
+    function loadImage(file) {
+      const nextUrl = URL.createObjectURL(file);
+      const image = new Image();
+      image.onload = () => {
+        if (state.imageUrl) URL.revokeObjectURL(state.imageUrl);
+        state.image = image;
+        state.imageUrl = nextUrl;
+        state.viewMode = "original";
+        imageMeta.textContent = `${image.naturalWidth} x ${image.naturalHeight}px · ${formatBytes(file.size)}`;
+        imageSize.textContent = `${image.naturalWidth}x${image.naturalHeight}`;
+        emptyState.classList.add("hidden");
+        downloadBtn.disabled = false;
+        updateViewControls();
+        updateCanvasTitle(file.name);
+        drawCanvas();
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(nextUrl);
+        setStatus("圖片載入失敗", true);
+      };
+      image.src = nextUrl;
+    }
+
+    function renderFromInputs() {
+      autoResizeTextarea(jsonInput);
+      const result = parseIdeogramJson(jsonInput.value);
+      if (!result.ok) {
+        setStatus(result.error, true);
+        state.parsed = null;
+        state.elements = [];
+        state.palettes = [];
+        state.selectedId = null;
+        addBoxBtn.disabled = true;
+        addPaletteBtn.disabled = true;
+        downloadJsonBtn.disabled = true;
+        updateInspector();
+        drawCanvas();
+        return;
+      }
+
+      state.parsed = result.data;
+      state.elements = collectElements(result.data);
+      state.hidden.clear();
+      state.palettes = collectPalettes(result.data, state.elements);
+      state.selectedId = state.elements.find(item => item.validBbox)?.id ?? null;
+      addBoxBtn.disabled = false;
+      addPaletteBtn.disabled = false;
+      downloadJsonBtn.disabled = false;
+      setStatus(`已解析 ${state.elements.length} 個 elements`, false);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function parseIdeogramJson(raw) {
+      if (!raw.trim()) return { ok: false, error: "請貼上 Ideogram 4 JSON" };
+      try {
+        const data = JSON.parse(raw);
+        const elements = data?.compositional_deconstruction?.elements;
+        if (!Array.isArray(elements)) {
+          return { ok: false, error: "找不到 compositional_deconstruction.elements 陣列" };
+        }
+        return { ok: true, data };
+      } catch (error) {
+        return { ok: false, error: `JSON parse error: ${error.message}` };
+      }
+    }
+
+    function embeddedComfyWorkflow() {
+      const raw = document.getElementById("embeddedComfyWorkflow")?.textContent?.trim();
+      if (!raw) throw new Error("頁面內沒有嵌入 ComfyUI workflow");
+      return JSON.parse(raw);
+    }
+
+    function normalizeComfyUrl() {
+      let url = comfyUrlInput.value.trim();
+      if (!url) throw new Error("請輸入 ComfyUI URL");
+      if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
+      return url.replace(/\/+$/, "");
+    }
+
+    async function testComfyConnection() {
+      let baseUrl = "";
+      try {
+        baseUrl = normalizeComfyUrl();
+        localStorage.setItem("ideogramComfyUrl", baseUrl);
+        setComfyStatus("正在連線 ComfyUI...", false);
+        const response = await fetch(`${baseUrl}/system_stats`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const version = data?.system?.comfyui_version || "unknown";
+        const gpu = data?.devices?.[0]?.name || "device unknown";
+        setComfyStatus(`ComfyUI connected · ${version} · ${gpu}`, false);
+      } catch (error) {
+        const corsMessage = baseUrl ? await comfyCorsMessage(baseUrl) : "";
+        setComfyStatus(corsMessage || comfyErrorMessage(error), true);
+      }
+    }
+
+    async function generateWithComfy() {
+      if (comfyGenerateBtn.disabled) return;
+      comfyGenerateBtn.disabled = true;
+      comfyTestBtn.disabled = true;
+
+      try {
+        if (!state.parsed) {
+          renderFromInputs();
+          if (!state.parsed) throw new Error("請先提供有效的 Ideogram JSON");
+        }
+
+        const baseUrl = normalizeComfyUrl();
+        localStorage.setItem("ideogramComfyUrl", baseUrl);
+        const workflow = prepareComfyWorkflow(state.parsed);
+        const clientId = `ideogram-json-visualizer-${crypto.randomUUID?.() || Date.now()}`;
+        setComfyStatus("已送出 workflow，等待 ComfyUI queue...", false);
+
+        const queueResponse = await fetch(`${baseUrl}/prompt`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: workflow, client_id: clientId })
+        });
+        if (!queueResponse.ok) {
+          const text = await queueResponse.text();
+          throw new Error(`Queue failed HTTP ${queueResponse.status}: ${text.slice(0, 300)}`);
+        }
+
+        const queueData = await queueResponse.json();
+        if (!queueData.prompt_id) throw new Error("ComfyUI 沒有回傳 prompt_id");
+        setComfyStatus(`生成中 · prompt_id ${queueData.prompt_id}`, false);
+
+        const historyItem = await pollComfyHistory(baseUrl, queueData.prompt_id);
+        const image = firstComfyImage(historyItem);
+        if (!image) throw new Error("ComfyUI 完成了，但 history 裡沒有 image output");
+
+        const imageUrl = comfyViewUrl(baseUrl, image);
+        await loadComfyResultImage(imageUrl, image.filename);
+        setComfyStatus(`生成完成 · ${image.filename}`, false);
+      } catch (error) {
+        const corsMessage = await comfyCorsMessageFromInput();
+        setComfyStatus(corsMessage || comfyErrorMessage(error), true);
+      } finally {
+        comfyGenerateBtn.disabled = false;
+        comfyTestBtn.disabled = false;
+      }
+    }
+
+    function loadComfyResultImage(imageUrl, filename) {
+      return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.crossOrigin = "anonymous";
+        image.onload = () => {
+          state.resultImage = image;
+          state.resultImageUrl = imageUrl;
+          state.resultImageName = filename || "ComfyUI result";
+          state.viewMode = "result";
+          viewResultBtn.disabled = false;
+          updateViewControls();
+          updateCanvasTitle();
+          drawCanvas();
+          resolve(image);
+        };
+        image.onerror = () => reject(new Error("ComfyUI 結果圖載入失敗"));
+        image.src = imageUrl;
+      });
+    }
+
+    function setViewMode(mode) {
+      if (mode === "result" && !state.resultImage) return;
+      if (mode === "original" && !state.image && state.resultImage) return;
+      state.viewMode = mode;
+      updateViewControls();
+      updateCanvasTitle();
+      drawCanvas();
+    }
+
+    function updateViewControls() {
+      viewOriginalBtn.classList.toggle("is-active", state.viewMode === "original");
+      viewResultBtn.classList.toggle("is-active", state.viewMode === "result");
+      viewOriginalBtn.disabled = !state.image;
+      viewResultBtn.disabled = !state.resultImage;
+    }
+
+    function activeCanvasImage() {
+      if (state.viewMode === "result" && state.resultImage) return state.resultImage;
+      if (state.image) return state.image;
+      return state.resultImage || null;
+    }
+
+    function updateCanvasTitle(originalName = "") {
+      if (state.viewMode === "result" && state.resultImage) {
+        canvasTitle.textContent = `Result · ${state.resultImageName || "ComfyUI output"}`;
+        return;
+      }
+      if (state.image) {
+        canvasTitle.textContent = originalName || canvasTitle.dataset.originalName || "Original image";
+        if (originalName) canvasTitle.dataset.originalName = originalName;
+        return;
+      }
+      canvasTitle.textContent = "No image loaded";
+    }
+
+    function prepareComfyWorkflow(ideogramData) {
+      const workflow = structuredClone(embeddedComfyWorkflow());
+      if (!workflow["167"]?.inputs) {
+        throw new Error("嵌入 workflow 找不到 node 167 positive prompt");
+      }
+      workflow["167"].inputs.text = JSON.stringify(ideogramData, null, 2);
+      if (workflow["165"]?.inputs && "noise_seed" in workflow["165"].inputs) {
+        workflow["165"].inputs.noise_seed = Math.floor(Math.random() * 999999999999999);
+      }
+      return workflow;
+    }
+
+    async function pollComfyHistory(baseUrl, promptId) {
+      const startedAt = Date.now();
+      const timeoutMs = 10 * 60 * 1000;
+      while (Date.now() - startedAt < timeoutMs) {
+        await delay(2500);
+        const response = await fetch(`${baseUrl}/history/${encodeURIComponent(promptId)}`);
+        if (!response.ok) throw new Error(`History failed HTTP ${response.status}`);
+        const history = await response.json();
+        const item = history?.[promptId];
+        if (!item) continue;
+
+        if (item.status?.status_str === "error") {
+          throw new Error(`ComfyUI generation failed: ${JSON.stringify(item.status).slice(0, 500)}`);
+        }
+        if (item.status?.completed) return item;
+      }
+      throw new Error("等待 ComfyUI 生成逾時");
+    }
+
+    function firstComfyImage(historyItem) {
+      const outputs = historyItem?.outputs || {};
+      for (const output of Object.values(outputs)) {
+        if (Array.isArray(output.images) && output.images.length) return output.images[0];
+      }
+      return null;
+    }
+
+    function comfyViewUrl(baseUrl, image) {
+      const params = new URLSearchParams({
+        filename: image.filename,
+        subfolder: image.subfolder || "",
+        type: image.type || "output"
+      });
+      return `${baseUrl}/view?${params.toString()}`;
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function setComfyStatus(message, isError) {
+      comfyStatusLine.textContent = message;
+      comfyStatusLine.classList.toggle("is-error", Boolean(isError));
+    }
+
+    async function comfyCorsMessageFromInput() {
+      try {
+        return await comfyCorsMessage(normalizeComfyUrl());
+      } catch {
+        return "";
+      }
+    }
+
+    async function comfyCorsMessage(baseUrl) {
+      const reachable = await canReachNoCors(`${baseUrl}/system_stats`);
+      if (!reachable) return "";
+      return "ComfyUI 伺服器可達，但瀏覽器 CORS 阻擋了 localhost:5173。請用 --enable-cors-header 啟動 ComfyUI 後再試。";
+    }
+
+    async function canReachNoCors(url) {
+      try {
+        await fetch(url, { mode: "no-cors", cache: "no-store" });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function comfyErrorMessage(error) {
+      const message = error?.message || String(error);
+      if (/Failed to fetch|NetworkError|Load failed/i.test(message)) {
+        return "無法連線 ComfyUI。請確認 URL/port 正確，ComfyUI 已啟動，必要時用 --enable-cors-header 開啟 CORS。";
+      }
+      return message;
+    }
+
+    function collectElements(data) {
+      return data.compositional_deconstruction.elements
+        .map((item, index) => ({
+          ...item,
+          id: index,
+          color: firstValidColor(item.color_palette) || frameColors[index % frameColors.length],
+          label: item.text ? item.text : `#${index + 1} ${item.type || "obj"}`,
+          validBbox: Array.isArray(item.bbox) && item.bbox.length === 4 && item.bbox.every(value => Number.isFinite(Number(value)))
+        }));
+    }
+
+    function collectPalettes(data) {
+      const rows = [];
+      const stylePalette = data?.style_description?.color_palette;
+      if (Array.isArray(stylePalette)) {
+        rows.push({
+          source: "style",
+          id: "style",
+          name: "style_description.color_palette",
+          colors: stylePalette
+        });
+      }
+      return rows;
+    }
+
+    function firstValidColor(colors) {
+      if (!Array.isArray(colors)) return "";
+      return colors.map(normalizeHexColor).find(Boolean) || "";
+    }
+
+    function parsePaletteInput(value) {
+      return value
+        .split(/[,\\n]/)
+        .map(part => normalizeHexColor(part.trim()))
+        .filter(Boolean);
+    }
+
+    function normalizeHexColor(value) {
+      const raw = String(value || "").trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toUpperCase();
+      if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+        return `#${raw[1]}${raw[1]}${raw[2]}${raw[2]}${raw[3]}${raw[3]}`.toUpperCase();
+      }
+      return "";
+    }
+
+    function drawCanvas() {
+      const shell = document.querySelector(".canvas-shell");
+      const maxWidth = Math.max(240, shell.clientWidth - 32);
+      const maxHeight = Math.max(280, shell.clientHeight - 32);
+      const image = activeCanvasImage();
+      const hasImage = Boolean(image);
+
+      if (!hasImage) {
+        canvas.width = 1;
+        canvas.height = 1;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
+        state.displayWidth = 0;
+        state.displayHeight = 0;
+        ctx.clearRect(0, 0, 1, 1);
+        emptyState.classList.remove("hidden");
+        return;
+      }
+
+      const scale = Math.min(1, maxWidth / image.naturalWidth, maxHeight / image.naturalHeight);
+      const displayWidth = Math.max(1, Math.round(image.naturalWidth * scale));
+      const displayHeight = Math.max(1, Math.round(image.naturalHeight * scale));
+      const dpr = window.devicePixelRatio || 1;
+      state.displayWidth = displayWidth;
+      state.displayHeight = displayHeight;
+      emptyState.classList.add("hidden");
+
+      canvas.width = Math.round(displayWidth * dpr);
+      canvas.height = Math.round(displayHeight * dpr);
+      canvas.style.width = `${displayWidth}px`;
+      canvas.style.height = `${displayHeight}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, displayWidth, displayHeight);
+      ctx.drawImage(image, 0, 0, displayWidth, displayHeight);
+
+      state.elements.forEach((item, index) => {
+        if (!item.validBbox || state.hidden.has(item.id)) return;
+        drawElement(item, index, displayWidth, displayHeight);
+      });
+      state.elements.forEach(item => {
+        if (!item.validBbox || state.hidden.has(item.id)) return;
+        drawElementPaletteFromBbox(item, displayWidth, displayHeight);
+      });
+      drawSelectedHandles(displayWidth, displayHeight);
+    }
+
+    function drawElement(item, index, displayWidth, displayHeight) {
+      const [yMin, xMin, yMax, xMax] = item.bbox.map(Number);
+      const x = xMin / 1000 * displayWidth;
+      const y = yMin / 1000 * displayHeight;
+      const w = (xMax - xMin) / 1000 * displayWidth;
+      const h = (yMax - yMin) / 1000 * displayHeight;
+      const color = item.color;
+      const selected = item.id === state.selectedId;
+
+      ctx.save();
+      ctx.lineWidth = selected ? Math.max(3, displayWidth / 260) : Math.max(2, displayWidth / 360);
+      ctx.strokeStyle = color;
+      if (fillToggle.checked) {
+        ctx.fillStyle = hexToRgba(color, selected ? 0.26 : 0.18);
+        ctx.fillRect(x, y, w, h);
+      }
+      ctx.strokeRect(x, y, w, h);
+
+      if (labelToggle.checked) {
+        const label = `${index + 1} ${item.text || item.type || "obj"}`;
+        const fontSize = Math.max(12, Math.min(18, displayWidth / 42));
+        ctx.font = `700 ${fontSize}px Segoe UI, sans-serif`;
+        const textWidth = ctx.measureText(label).width;
+        const labelX = Math.max(0, Math.min(x, displayWidth - textWidth - 14));
+        const labelY = Math.max(0, y - fontSize - 10);
+        ctx.fillStyle = color;
+        ctx.fillRect(labelX, labelY, textWidth + 14, fontSize + 8);
+        ctx.fillStyle = "#11131A";
+        ctx.fillText(label, labelX + 7, labelY + fontSize + 1);
+      }
+      ctx.restore();
+    }
+
+    function drawElementPaletteFromBbox(item, displayWidth, displayHeight) {
+      const [yMin, xMin, yMax, xMax] = item.bbox.map(Number);
+      const x = xMin / 1000 * displayWidth;
+      const y = yMin / 1000 * displayHeight;
+      const w = (xMax - xMin) / 1000 * displayWidth;
+      const h = (yMax - yMin) / 1000 * displayHeight;
+      drawElementPalette(item, x, y, w, h, displayWidth, displayHeight);
+    }
+
+    function drawElementPalette(item, x, y, w, h, displayWidth, displayHeight) {
+      const colors = Array.isArray(item.color_palette)
+        ? item.color_palette.map(normalizeHexColor).filter(Boolean).slice(0, 6)
+        : [];
+      if (!colors.length) return;
+
+      const swatchSize = Math.max(7, Math.min(12, displayWidth / 70));
+      const gap = 2;
+      const padding = 3;
+      const panelWidth = colors.length * swatchSize + (colors.length - 1) * gap + padding * 2;
+      const panelHeight = swatchSize + padding * 2;
+      const panelX = clamp(x + w - panelWidth - 4, 0, Math.max(0, displayWidth - panelWidth));
+      const panelY = clamp(y + h - panelHeight - 4, 0, Math.max(0, displayHeight - panelHeight));
+
+      ctx.save();
+      ctx.fillStyle = "rgba(10, 14, 21, 0.82)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.42)";
+      ctx.lineWidth = 1;
+      ctx.fillRect(panelX, panelY, panelWidth, panelHeight);
+      ctx.strokeRect(panelX, panelY, panelWidth, panelHeight);
+
+      colors.forEach((paletteColor, colorIndex) => {
+        const swatchX = panelX + padding + colorIndex * (swatchSize + gap);
+        const swatchY = panelY + padding;
+        ctx.fillStyle = paletteColor;
+        ctx.fillRect(swatchX, swatchY, swatchSize, swatchSize);
+        ctx.strokeStyle = isLightColor(paletteColor) ? "rgba(0, 0, 0, 0.42)" : "rgba(255, 255, 255, 0.55)";
+        ctx.strokeRect(swatchX + 0.5, swatchY + 0.5, swatchSize - 1, swatchSize - 1);
+      });
+      ctx.restore();
+    }
+
+    function drawSelectedHandles(displayWidth, displayHeight) {
+      const item = state.elements.find(element => element.id === state.selectedId);
+      if (!item || !item.validBbox || state.hidden.has(item.id)) return;
+      const [yMin, xMin, yMax, xMax] = item.bbox.map(Number);
+      const x = xMin / 1000 * displayWidth;
+      const y = yMin / 1000 * displayHeight;
+      const w = (xMax - xMin) / 1000 * displayWidth;
+      const h = (yMax - yMin) / 1000 * displayHeight;
+      drawHandles(x, y, w, h, item.color);
+    }
+
+    function drawHandles(x, y, w, h, color) {
+      const size = 10;
+      const points = [
+        [x, y],
+        [x + w, y],
+        [x, y + h],
+        [x + w, y + h]
+      ];
+      ctx.save();
+      ctx.fillStyle = "#0a0e15";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      points.forEach(([px, py]) => {
+        ctx.beginPath();
+        ctx.rect(px - size / 2, py - size / 2, size, size);
+        ctx.fill();
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    function handleCanvasPointerDown(event) {
+      if (!state.image || !state.elements.length) return;
+      const point = getCanvasPoint(event);
+      const hit = hitTest(point.x, point.y);
+      if (!hit) {
+        state.selectedId = null;
+        state.drag = null;
+        updateInspector();
+        drawCanvas();
+        return;
+      }
+
+      state.selectedId = hit.id;
+      const item = state.elements.find(element => element.id === hit.id);
+      state.drag = {
+        id: hit.id,
+        mode: hit.mode,
+        startX: point.x,
+        startY: point.y,
+        startBbox: item.bbox.map(Number)
+      };
+      canvas.setPointerCapture(event.pointerId);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function handleCanvasPointerMove(event) {
+      if (!state.image) return;
+      const point = getCanvasPoint(event);
+      if (!state.drag) {
+        const hit = hitTest(point.x, point.y);
+        canvas.style.cursor = hit ? cursorForMode(hit.mode) : "crosshair";
+        return;
+      }
+
+      const item = state.elements.find(element => element.id === state.drag.id);
+      if (!item) return;
+
+      const dx = (point.x - state.drag.startX) / state.displayWidth * 1000;
+      const dy = (point.y - state.drag.startY) / state.displayHeight * 1000;
+      item.bbox = nextBbox(state.drag.startBbox, dx, dy, state.drag.mode);
+      syncParsedElement(item);
+      drawCanvas();
+    }
+
+    function handleCanvasPointerUp(event) {
+      if (!state.drag) return;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      state.drag = null;
+      updateJsonFromState(`已更新 #${(state.selectedId ?? -1) + 1} bbox`);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function getCanvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+        y: Math.max(0, Math.min(rect.height, event.clientY - rect.top))
+      };
+    }
+
+    function hitTest(x, y) {
+      const selected = state.elements.find(item => item.id === state.selectedId);
+      const selectedHit = hitElement(selected, x, y);
+      if (selectedHit) return selectedHit;
+
+      for (let index = state.elements.length - 1; index >= 0; index -= 1) {
+        const item = state.elements[index];
+        const hit = hitElement(item, x, y);
+        if (hit) return hit;
+      }
+      return null;
+    }
+
+    function hitElement(item, x, y) {
+      if (!item || !item.validBbox || state.hidden.has(item.id)) return null;
+      const rect = bboxToRect(item.bbox);
+      const handle = hitHandle(x, y, rect);
+      if (handle) return { id: item.id, mode: handle };
+      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+        return { id: item.id, mode: "move" };
+      }
+      return null;
+    }
+
+    function hitHandle(x, y, rect) {
+      const size = 14;
+      const handles = {
+        nw: [rect.x, rect.y],
+        ne: [rect.x + rect.w, rect.y],
+        sw: [rect.x, rect.y + rect.h],
+        se: [rect.x + rect.w, rect.y + rect.h]
+      };
+      for (const [mode, [hx, hy]] of Object.entries(handles)) {
+        if (Math.abs(x - hx) <= size && Math.abs(y - hy) <= size) return mode;
+      }
+      return "";
+    }
+
+    function bboxToRect(bbox) {
+      const [yMin, xMin, yMax, xMax] = bbox.map(Number);
+      return {
+        x: xMin / 1000 * state.displayWidth,
+        y: yMin / 1000 * state.displayHeight,
+        w: (xMax - xMin) / 1000 * state.displayWidth,
+        h: (yMax - yMin) / 1000 * state.displayHeight
+      };
+    }
+
+    function nextBbox(startBbox, dx, dy, mode) {
+      let [yMin, xMin, yMax, xMax] = startBbox;
+      const minSize = 8;
+
+      if (mode === "move") {
+        const width = xMax - xMin;
+        const height = yMax - yMin;
+        xMin = clamp(xMin + dx, 0, 1000 - width);
+        xMax = xMin + width;
+        yMin = clamp(yMin + dy, 0, 1000 - height);
+        yMax = yMin + height;
+      } else {
+        if (mode.includes("n")) yMin = clamp(yMin + dy, 0, yMax - minSize);
+        if (mode.includes("s")) yMax = clamp(yMax + dy, yMin + minSize, 1000);
+        if (mode.includes("w")) xMin = clamp(xMin + dx, 0, xMax - minSize);
+        if (mode.includes("e")) xMax = clamp(xMax + dx, xMin + minSize, 1000);
+      }
+
+      return [yMin, xMin, yMax, xMax].map(value => Math.round(clamp(value, 0, 1000)));
+    }
+
+    function syncParsedElement(item) {
+      const target = state.parsed?.compositional_deconstruction?.elements?.[item.id];
+      if (!target) return;
+      target.bbox = item.bbox;
+      target.desc = item.desc || "";
+      if (item.type === "text") target.text = item.text || "";
+      if (Array.isArray(item.color_palette) && item.color_palette.length) {
+        target.color_palette = item.color_palette;
+      } else {
+        delete target.color_palette;
+      }
+    }
+
+    function updateJsonFromState(message = "已更新 JSON") {
+      if (!state.parsed) return;
+      state.elements.forEach(syncParsedElement);
+      jsonInput.value = JSON.stringify(state.parsed, null, 2);
+      autoResizeTextarea(jsonInput);
+      setStatus(message, false);
+    }
+
+    function selectedElement() {
+      return state.elements.find(item => item.id === state.selectedId) || null;
+    }
+
+    function updateDocumentFromEditor() {
+      if (!state.parsed || state.isSyncingEditor) return;
+      state.parsed.high_level_description = highLevelInput.value;
+      state.parsed.compositional_deconstruction ||= {};
+      state.parsed.compositional_deconstruction.background = backgroundInput.value;
+
+      const rawStyle = styleDescriptionInput.value.trim();
+      const existingPalette = Array.isArray(state.parsed.style_description?.color_palette)
+        ? state.parsed.style_description.color_palette
+        : null;
+      if (!rawStyle) {
+        state.parsed.style_description = {};
+      } else {
+        try {
+          state.parsed.style_description = JSON.parse(rawStyle);
+        } catch (error) {
+          setStatus(`style_description 必須是 JSON object: ${error.message}`, true);
+          return;
+        }
+      }
+      if (existingPalette?.length) {
+        state.parsed.style_description.color_palette = existingPalette;
+      }
+
+      state.palettes = collectPalettes(state.parsed, state.elements);
+      updateJsonFromState("已更新 document 欄位");
+    }
+
+    function updateSelectedFromEditor() {
+      const item = selectedElement();
+      if (!state.parsed || !item || state.isSyncingEditor) return;
+
+      item.desc = selectedDescInput.value;
+      if (item.type === "text") item.text = selectedTextInput.value;
+
+      item.color = firstValidColor(item.color_palette) || frameColors[item.id % frameColors.length];
+      state.palettes = collectPalettes(state.parsed, state.elements);
+      updateJsonFromState(`已更新 #${item.id + 1} 欄位`);
+      drawCanvas();
+    }
+
+    function syncDocumentEditor() {
+      state.isSyncingEditor = true;
+      const hasParsed = Boolean(state.parsed);
+      [highLevelInput, styleDescriptionInput, backgroundInput].forEach(input => {
+        input.disabled = !hasParsed;
+      });
+      highLevelInput.value = state.parsed?.high_level_description || "";
+      styleDescriptionInput.value = state.parsed?.style_description
+        ? JSON.stringify(styleDescriptionForEditor(state.parsed.style_description), null, 2)
+        : "";
+      backgroundInput.value = state.parsed?.compositional_deconstruction?.background || "";
+      state.isSyncingEditor = false;
+      autoResizeTextarea(highLevelInput);
+      autoResizeTextarea(styleDescriptionInput);
+      autoResizeTextarea(backgroundInput);
+    }
+
+    function styleDescriptionForEditor(styleDescription) {
+      if (!styleDescription || typeof styleDescription !== "object") return {};
+      const { color_palette: _colorPalette, ...visibleStyle } = styleDescription;
+      return visibleStyle;
+    }
+
+    function syncSelectedEditor() {
+      state.isSyncingEditor = true;
+      const item = selectedElement();
+      const hasItem = Boolean(item);
+      [selectedDescInput, selectedTextInput].forEach(input => {
+        input.disabled = !hasItem;
+      });
+      selectedTextField.classList.toggle("is-hidden", !item || item.type !== "text");
+      selectedDescInput.value = item?.desc || "";
+      selectedTextInput.value = item?.text || "";
+      selectedPaletteEditor.classList.toggle("is-disabled", !hasItem);
+      selectedPaletteEditor.innerHTML = hasItem
+        ? elementPaletteRowTemplate(item, "palette-row-selected")
+        : '<span class="muted">No palette</span>';
+      attachPaletteEvents(selectedPaletteEditor);
+      state.isSyncingEditor = false;
+      autoResizeTextarea(selectedDescInput);
+    }
+
+    function addBox() {
+      if (!state.parsed) return;
+      state.parsed.compositional_deconstruction ||= {};
+      state.parsed.compositional_deconstruction.elements ||= [];
+      const newItem = {
+        type: "obj",
+        bbox: [250, 250, 500, 500],
+        desc: ""
+      };
+      state.parsed.compositional_deconstruction.elements.push(newItem);
+      state.elements = collectElements(state.parsed);
+      state.selectedId = state.elements.length - 1;
+      state.palettes = collectPalettes(state.parsed, state.elements);
+      updateJsonFromState(`已新增 #${state.selectedId + 1} box`);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function removeBox(id) {
+      if (!state.parsed || !Number.isFinite(id)) return;
+      const elements = state.parsed.compositional_deconstruction?.elements;
+      if (!Array.isArray(elements) || !elements[id]) return;
+
+      elements.splice(id, 1);
+      state.elements = collectElements(state.parsed);
+      state.hidden.clear();
+      if (!state.elements.length) {
+        state.selectedId = null;
+      } else {
+        state.selectedId = Math.min(id, state.elements.length - 1);
+      }
+      state.palettes = collectPalettes(state.parsed);
+      updateJsonFromState(`已移除 #${id + 1} obj`);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function addColorPanel() {
+      if (!state.parsed) return;
+      state.parsed.style_description ||= {};
+      if (!Array.isArray(state.parsed.style_description.color_palette)) {
+        state.parsed.style_description.color_palette = ["#FFFFFF"];
+      } else {
+        state.parsed.style_description.color_palette.push("#FFFFFF");
+      }
+      state.palettes = collectPalettes(state.parsed, state.elements);
+      updateJsonFromState("已新增 style_description color panel");
+      updateInspector();
+      drawCanvas();
+    }
+
+    function cursorForMode(mode) {
+      return {
+        move: "move",
+        nw: "nwse-resize",
+        se: "nwse-resize",
+        ne: "nesw-resize",
+        sw: "nesw-resize"
+      }[mode] || "crosshair";
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function isLightColor(color) {
+      const hex = normalizeHexColor(color);
+      if (!hex) return false;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return (r * 299 + g * 587 + b * 114) / 1000 > 186;
+    }
+
+    function updateInspector() {
+      const valid = state.elements.filter(item => item.validBbox).length;
+      const text = state.elements.filter(item => item.type === "text").length;
+      elementCount.textContent = String(valid);
+      textCount.textContent = String(text);
+      syncDocumentEditor();
+      syncSelectedEditor();
+
+      paletteList.innerHTML = state.palettes.length
+        ? state.palettes.map(row => paletteTemplate(row)).join("")
+        : '<span class="muted">No palette</span>';
+
+      attachPaletteEvents(paletteList);
+
+      elementList.innerHTML = state.elements.length
+        ? state.elements.map(item => elementTemplate(item)).join("")
+        : '<div class="empty-list">No parsed elements</div>';
+
+      elementList.querySelectorAll("[data-select]").forEach(card => {
+        card.addEventListener("click", () => {
+          state.selectedId = Number(card.dataset.select);
+          updateInspector();
+          drawCanvas();
+        });
+      });
+
+      elementList.querySelectorAll("[data-toggle]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          const id = Number(button.dataset.toggle);
+          if (state.hidden.has(id)) state.hidden.delete(id);
+          else state.hidden.add(id);
+          updateInspector();
+          drawCanvas();
+        });
+      });
+
+      elementList.querySelectorAll("[data-remove]").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          removeBox(Number(button.dataset.remove));
+        });
+      });
+
+      elementList.querySelectorAll("[data-field]").forEach(input => {
+        input.addEventListener("click", event => event.stopPropagation());
+        input.addEventListener("focus", () => {
+          state.selectedId = Number(input.dataset.id);
+          drawCanvas();
+        });
+        input.addEventListener("input", updateElementFromInlineEditor);
+        input.addEventListener("change", updateInspector);
+      });
+      attachPaletteEvents(elementList);
+
+      autoResizeAllTextareas();
+    }
+
+    function attachPaletteEvents(root) {
+      root.querySelectorAll("[data-palette-action='edit']").forEach(input => {
+        input.addEventListener("click", event => event.stopPropagation());
+        input.addEventListener("contextmenu", event => {
+          event.preventDefault();
+          event.stopPropagation();
+          showPaletteContextMenu(event, input);
+        });
+        input.addEventListener("focus", () => {
+          const id = Number(input.dataset.paletteId);
+          if (input.dataset.paletteSource === "element" && Number.isFinite(id)) {
+            state.selectedId = id;
+            drawCanvas();
+          }
+        });
+        input.addEventListener("input", updatePaletteColorFromPicker);
+        input.addEventListener("change", updateInspector);
+      });
+
+      root.querySelectorAll("[data-palette-action='add']").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          addPaletteColor(button.dataset.paletteSource, button.dataset.paletteId);
+        });
+      });
+
+      root.querySelectorAll("[data-palette-action='auto']").forEach(button => {
+        button.addEventListener("click", event => {
+          event.stopPropagation();
+          autoPaletteColors(button.dataset.paletteSource, button.dataset.paletteId);
+        });
+      });
+    }
+
+    function showPaletteContextMenu(event, input) {
+      const source = input.dataset.paletteSource;
+      const id = input.dataset.paletteId;
+      const index = Number(input.dataset.paletteIndex);
+      if (!source || !Number.isFinite(index)) return;
+
+      state.paletteMenu = { source, id, index };
+      paletteContextMenu.style.left = `${event.clientX}px`;
+      paletteContextMenu.style.top = `${event.clientY}px`;
+      paletteContextMenu.classList.remove("is-hidden");
+
+      const rect = paletteContextMenu.getBoundingClientRect();
+      const left = Math.min(event.clientX, window.innerWidth - rect.width - 8);
+      const top = Math.min(event.clientY, window.innerHeight - rect.height - 8);
+      paletteContextMenu.style.left = `${Math.max(8, left)}px`;
+      paletteContextMenu.style.top = `${Math.max(8, top)}px`;
+    }
+
+    function hidePaletteContextMenu() {
+      state.paletteMenu = null;
+      paletteContextMenu.classList.add("is-hidden");
+    }
+
+    function paletteTemplate(row, className = "") {
+      return `
+        <div class="palette-row ${escapeAttr(className)}">
+          <strong>${escapeHtml(row.name)}</strong>
+          <div class="palette-color-list">
+            ${paletteControlsTemplate(row)}
+          </div>
+        </div>
+      `;
+    }
+
+    function paletteControlsTemplate(row) {
+      const colors = Array.isArray(row.colors) ? row.colors : [];
+      const autoButton = row.source === "element"
+        ? `
+          <button
+            type="button"
+            class="palette-auto-color"
+            data-palette-action="auto"
+            data-palette-source="${escapeAttr(row.source)}"
+            data-palette-id="${escapeAttr(row.id)}"
+            title="分析 bbox 範圍前三個主色"
+          >Auto</button>
+        `
+        : "";
+      return `
+        ${colors.map((color, index) => paletteColorTemplate(row, color, index)).join("")}
+        ${autoButton}
+        <button
+          type="button"
+          class="palette-add-color"
+          data-palette-action="add"
+          data-palette-source="${escapeAttr(row.source)}"
+          data-palette-id="${escapeAttr(row.id)}"
+          title="新增 color"
+        >+</button>
+      `;
+    }
+
+    function paletteColorTemplate(row, color, index) {
+      const safeColor = normalizeHexColor(color) || "#FFFFFF";
+      return `
+        <input
+          type="color"
+          class="palette-color-input"
+          data-palette-action="edit"
+          data-palette-source="${escapeAttr(row.source)}"
+          data-palette-id="${escapeAttr(row.id)}"
+          data-palette-index="${index}"
+          value="${safeColor}"
+          title="編輯顏色"
+        >
+      `;
+    }
+
+    function updatePaletteColorFromPicker(event) {
+      const input = event.currentTarget;
+      const color = normalizeHexColor(input.value);
+      const source = input.dataset.paletteSource;
+      const index = Number(input.dataset.paletteIndex);
+
+      if (!state.parsed || !color || !Number.isFinite(index)) return;
+
+      if (source === "style") {
+        state.parsed.style_description ||= {};
+        state.parsed.style_description.color_palette ||= [];
+        state.parsed.style_description.color_palette[index] = color;
+        state.palettes = collectPalettes(state.parsed, state.elements);
+        updateJsonFromState("已更新 style_description.color_palette");
+        return;
+      }
+
+      if (source === "element") {
+        const id = Number(input.dataset.paletteId);
+        const item = state.elements.find(element => element.id === id);
+        if (!item) return;
+
+        item.color_palette ||= [];
+        item.color_palette[index] = color;
+        item.color = firstValidColor(item.color_palette) || frameColors[item.id % frameColors.length];
+        state.palettes = collectPalettes(state.parsed, state.elements);
+        syncParsedElement(item);
+        syncSelectedEditor();
+        updateJsonFromState(`已更新 #${item.id + 1} color_palette`);
+        drawCanvas();
+      }
+    }
+
+    function removePaletteColor(source, rawId, index) {
+      if (!state.parsed || !Number.isFinite(index)) return;
+
+      if (source === "style") {
+        const palette = state.parsed.style_description?.color_palette;
+        if (!Array.isArray(palette) || !palette[index]) return;
+        palette.splice(index, 1);
+        if (!palette.length) delete state.parsed.style_description.color_palette;
+        state.palettes = collectPalettes(state.parsed);
+        updateJsonFromState("已移除 style color");
+        updateInspector();
+        return;
+      }
+
+      if (source === "element") {
+        const id = Number(rawId);
+        const item = state.elements.find(element => element.id === id);
+        if (!item || !Array.isArray(item.color_palette) || !item.color_palette[index]) return;
+
+        item.color_palette.splice(index, 1);
+        item.color = firstValidColor(item.color_palette) || frameColors[item.id % frameColors.length];
+        state.palettes = collectPalettes(state.parsed);
+        syncParsedElement(item);
+        updateJsonFromState(`已移除 #${item.id + 1} color`);
+        updateInspector();
+        drawCanvas();
+      }
+    }
+
+    function autoPaletteColors(source, rawId) {
+      if (source !== "element") return;
+      if (!state.parsed) return;
+      if (!state.image) {
+        setStatus("請先上傳圖片後再使用 Auto color", true);
+        return;
+      }
+
+      const id = Number(rawId);
+      const item = state.elements.find(element => element.id === id);
+      if (!item || !item.validBbox) {
+        setStatus("目前 obj 沒有有效 bbox，無法分析顏色", true);
+        return;
+      }
+
+      const colors = dominantColorsFromBbox(item.bbox, 3);
+      if (!colors.length) {
+        setStatus(`無法從 #${item.id + 1} bbox 取得顏色`, true);
+        return;
+      }
+
+      item.color_palette = colors;
+      item.color = firstValidColor(item.color_palette) || frameColors[item.id % frameColors.length];
+      state.palettes = collectPalettes(state.parsed, state.elements);
+      syncParsedElement(item);
+      updateJsonFromState(`已用 Auto color 更新 #${item.id + 1} 前 ${colors.length} 個主色`);
+      updateInspector();
+      drawCanvas();
+    }
+
+    function dominantColorsFromBbox(bbox, limit = 3) {
+      const image = state.image;
+      if (!image) return [];
+
+      const [yMin, xMin, yMax, xMax] = bbox.map(Number);
+      const left = Math.floor(clamp(Math.min(xMin, xMax) / 1000 * image.naturalWidth, 0, image.naturalWidth - 1));
+      const top = Math.floor(clamp(Math.min(yMin, yMax) / 1000 * image.naturalHeight, 0, image.naturalHeight - 1));
+      const right = Math.ceil(clamp(Math.max(xMin, xMax) / 1000 * image.naturalWidth, left + 1, image.naturalWidth));
+      const bottom = Math.ceil(clamp(Math.max(yMin, yMax) / 1000 * image.naturalHeight, top + 1, image.naturalHeight));
+      const width = Math.max(1, right - left);
+      const height = Math.max(1, bottom - top);
+
+      const sampleCanvas = document.createElement("canvas");
+      sampleCanvas.width = width;
+      sampleCanvas.height = height;
+      const sampleCtx = sampleCanvas.getContext("2d", { willReadFrequently: true });
+      sampleCtx.drawImage(image, left, top, width, height, 0, 0, width, height);
+
+      const pixels = sampleCtx.getImageData(0, 0, width, height).data;
+      const maxSamples = 250000;
+      const pixelCount = width * height;
+      const stride = Math.max(1, Math.ceil(Math.sqrt(pixelCount / maxSamples)));
+      const buckets = new Map();
+
+      for (let y = 0; y < height; y += stride) {
+        for (let x = 0; x < width; x += stride) {
+          const offset = (y * width + x) * 4;
+          const alpha = pixels[offset + 3];
+          if (alpha < 12) continue;
+
+          const r = pixels[offset];
+          const g = pixels[offset + 1];
+          const b = pixels[offset + 2];
+          const qr = r >> 3;
+          const qg = g >> 3;
+          const qb = b >> 3;
+          const key = `${qr},${qg},${qb}`;
+          const bucket = buckets.get(key) || { count: 0, r: 0, g: 0, b: 0 };
+          bucket.count += 1;
+          bucket.r += r;
+          bucket.g += g;
+          bucket.b += b;
+          buckets.set(key, bucket);
+        }
+      }
+
+      return [...buckets.values()]
+        .sort((a, b) => b.count - a.count)
+        .slice(0, limit)
+        .map(bucket => rgbToHex(
+          Math.round(bucket.r / bucket.count),
+          Math.round(bucket.g / bucket.count),
+          Math.round(bucket.b / bucket.count)
+        ));
+    }
+
+    function rgbToHex(r, g, b) {
+      return `#${[r, g, b].map(value => clamp(Math.round(value), 0, 255).toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+    }
+
+    function addPaletteColor(source, rawId) {
+      if (!state.parsed) return;
+      const color = "#FFFFFF";
+
+      if (source === "style") {
+        state.parsed.style_description ||= {};
+        state.parsed.style_description.color_palette ||= [];
+        state.parsed.style_description.color_palette.push(color);
+        state.palettes = collectPalettes(state.parsed, state.elements);
+        updateJsonFromState("已新增 style color");
+        updateInspector();
+        return;
+      }
+
+      if (source === "element") {
+        const id = Number(rawId);
+        const item = state.elements.find(element => element.id === id);
+        if (!item) return;
+        item.color_palette ||= [];
+        item.color_palette.push(color);
+        item.color = firstValidColor(item.color_palette) || frameColors[item.id % frameColors.length];
+        state.palettes = collectPalettes(state.parsed, state.elements);
+        syncParsedElement(item);
+        syncSelectedEditor();
+        updateJsonFromState(`已新增 #${item.id + 1} color`);
+        updateInspector();
+        drawCanvas();
+      }
+    }
+
+    function elementTemplate(item) {
+      const hidden = state.hidden.has(item.id);
+      const bboxText = item.validBbox ? `[${item.bbox.join(", ")}]` : "missing bbox";
+      const literalText = item.type === "text"
+        ? `
+          <label class="inline-field">
+            <span>text</span>
+            <input type="text" data-field="text" data-id="${item.id}" value="${escapeAttr(item.text || "")}">
+          </label>
+        `
+        : "";
+
+      return `
+        <article class="element-card ${hidden ? "is-canvas-hidden" : ""} ${state.selectedId === item.id ? "is-selected" : ""}" data-select="${item.id}">
+          <div class="element-top">
+            <span class="index-dot" style="background:${item.color}">${item.id + 1}</span>
+            <div>
+              <strong>${escapeHtml(item.type || "obj")}</strong>
+              <code>${escapeHtml(bboxText)}</code>
+            </div>
+            <div class="element-actions">
+              <button type="button" class="icon-btn" data-toggle="${item.id}" title="只切換圖片上的框">${hidden ? "show" : "hide"}</button>
+              <button type="button" class="icon-btn icon-btn-danger" data-remove="${item.id}" title="移除 obj">remove</button>
+            </div>
+          </div>
+          ${literalText}
+          <label class="inline-field">
+            <span>desc</span>
+            <textarea class="compact-textarea card-desc-input" data-field="desc" data-id="${item.id}" spellcheck="false">${escapeHtml(item.desc || "")}</textarea>
+          </label>
+          ${elementPaletteRowTemplate(item, "palette-row-card")}
+        </article>
+      `;
+    }
+
+    function updateElementFromInlineEditor(event) {
+      const input = event.currentTarget;
+      const id = Number(input.dataset.id);
+      const field = input.dataset.field;
+      const item = state.elements.find(element => element.id === id);
+      if (!state.parsed || !item) return;
+
+      if (field === "desc") {
+        item.desc = input.value;
+        autoResizeTextarea(input);
+      }
+
+      if (field === "text" && item.type === "text") {
+        item.text = input.value;
+        item.label = input.value || `#${item.id + 1} ${item.type || "obj"}`;
+        drawCanvas();
+      }
+
+      syncParsedElement(item);
+      syncSelectedEditor();
+      updateJsonFromState(`已更新 #${item.id + 1} ${field}`);
+    }
+
+    function elementPaletteRowTemplate(item, className = "") {
+      return paletteTemplate({
+        source: "element",
+        id: String(item?.id ?? ""),
+        name: elementPaletteName(item),
+        colors: Array.isArray(item?.color_palette) ? item.color_palette : []
+      }, className);
+    }
+
+    function elementPaletteName(item) {
+      const index = Number.isFinite(Number(item?.id)) ? Number(item.id) : 0;
+      return `elements[${index}].color_palette`;
+    }
+
+    function swatchTemplate(color) {
+      const safeColor = normalizeHexColor(color) || "#667080";
+      return `<span class="swatch" style="background:${safeColor}" title="顏色"></span>`;
+    }
+
+    function downloadAnnotatedImage() {
+      if (!state.image) return;
+      const link = document.createElement("a");
+      link.download = "ideogram4-bbox-preview.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    }
+
+    function downloadJson() {
+      if (!state.parsed) return;
+      updateJsonFromState("已準備下載 JSON");
+      const blob = new Blob([JSON.stringify(state.parsed, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = "ideogram4-structured-caption.json";
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function clearAll() {
+      jsonInput.value = "";
+      autoResizeTextarea(jsonInput);
+      state.parsed = null;
+      state.elements = [];
+      state.hidden.clear();
+      state.palettes = [];
+      state.selectedId = null;
+      addBoxBtn.disabled = true;
+      addPaletteBtn.disabled = true;
+      downloadJsonBtn.disabled = true;
+      updateInspector();
+      drawCanvas();
+      setStatus("已清除 JSON 與 boxes", false);
+    }
+
+    function autoResizeTextarea(textarea) {
+      if (!textarea) return;
+      textarea.style.height = "auto";
+      textarea.style.height = `${Math.max(textarea.scrollHeight, textarea.offsetHeight)}px`;
+    }
+
+    function autoResizeAllTextareas() {
+      document.querySelectorAll("textarea").forEach(autoResizeTextarea);
+    }
+
+    function setStatus(message, isError) {
+      statusLine.textContent = message;
+      statusLine.classList.toggle("is-error", Boolean(isError));
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes) return "0 B";
+      const units = ["B", "KB", "MB", "GB"];
+      const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+      return `${(bytes / Math.pow(1024, index)).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+    }
+
+    function hexToRgba(hex, alpha) {
+      const value = hex.replace("#", "");
+      const r = parseInt(value.slice(0, 2), 16);
+      const g = parseInt(value.slice(2, 4), 16);
+      const b = parseInt(value.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }[char]));
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, "&#096;");
+    }
+
+    function initializeDefaults() {
+      comfyUrlInput.value = DEFAULT_COMFY_URL;
+      jsonInput.value = JSON.stringify(sampleJson, null, 2);
+      autoResizeTextarea(jsonInput);
+      renderFromInputs();
+    }
+
+    initializeDefaults();
+  </script>
+</body>
+</html>

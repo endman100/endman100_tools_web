@@ -227,7 +227,12 @@ a {
   display: grid;
   align-content: start;
   gap: 8px;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.left-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .input-panel,
@@ -276,6 +281,14 @@ a {
   gap: 12px;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .stage-toolbar {
   border-bottom: 1px solid var(--border);
   min-height: 42px;
@@ -312,9 +325,9 @@ a {
 
 .toolbar-comfy-controls {
   min-width: 0;
-  flex: 1 1 560px;
+  flex: 1 1 680px;
   display: grid;
-  grid-template-columns: auto minmax(170px, 1fr) auto auto minmax(120px, 220px);
+  grid-template-columns: auto minmax(160px, 1fr) auto auto auto minmax(120px, 220px);
   gap: 6px;
 }
 
@@ -323,8 +336,22 @@ a {
   white-space: nowrap;
 }
 
-.toolbar-comfy-controls input[type="text"] {
+.toolbar-comfy-controls input[type="text"],
+.toolbar-comfy-controls input[type="number"] {
   min-height: 34px;
+}
+
+.size-controls {
+  display: inline-grid;
+  grid-template-columns: 72px auto 72px;
+  align-items: center;
+  gap: 5px;
+}
+
+.size-controls span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .compact-status {
@@ -434,7 +461,21 @@ textarea {
   outline: none;
 }
 
-input[type="text"] {
+#jsonInput {
+  max-height: min(46vh, 520px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.json-panel.is-json-collapsed #jsonInput {
+  height: 132px !important;
+  min-height: 132px;
+  max-height: 132px;
+  overflow: auto;
+}
+
+input[type="text"],
+input[type="number"] {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--border);
@@ -446,7 +487,8 @@ input[type="text"] {
   outline: none;
 }
 
-.comfy-controls input[type="text"] {
+.comfy-controls input[type="text"],
+.comfy-controls input[type="number"] {
   font-family: var(--font);
 }
 
@@ -667,7 +709,6 @@ canvas {
 }
 
 .document-section,
-.selected-section,
 .palette-section,
 .element-section {
   margin-top: 18px;
@@ -794,16 +835,8 @@ canvas {
   gap: 10px;
 }
 
-.selected-palette-field {
-  margin-top: 10px;
-}
-
 .palette-row-card {
   margin-top: 10px;
-}
-
-.palette-row-selected {
-  background: rgba(255, 255, 255, 0.045);
 }
 
 .element-card {
